@@ -1,6 +1,27 @@
-const socket = io();
+// NovaStrike 3D Client
+// Original multiplayer arena client
 
-const DEFAULT_CONTROLS = {
+const socket = io({
+  withCredentials: true
+});
+
+const THREE_URL =
+  "https://cdn.jsdelivr.net/npm/three@0.179.1/build/three.module.js";
+
+let THREE;
+let scene;
+let camera;
+let renderer;
+let clock;
+
+let localPlayer = null;
+let gameStarted = false;
+
+const remotePlayers = new Map();
+
+const keys = {};
+
+const controls = {
   forward: "KeyW",
   backward: "KeyS",
   left: "KeyA",
@@ -8,319 +29,64 @@ const DEFAULT_CONTROLS = {
   sprint: "KeyR",
   slide: "ShiftLeft",
   sneak: "KeyC",
-  ability: "KeyQ",
-  slot1: "Digit1",
-  slot2: "Digit2",
-  slot3: "Digit3"
+  jump: "Space"
 };
 
-let controls = { ...DEFAULT_CONTROLS };
-let currentPlayer = null;
+const player = {
+  x: 0,
+  y: 2,
+  z: 20,
 
-let scene;
-let camera;
-let renderer;
-let clock;
+  velocityY: 0,
 
-let localPlayer;
-const remotePlayers = new Map();
+  speed: 7,
+  sprintSpeed: 12,
+  sneakSpeed: 3,
 
-const keys = new Set();
+  height: 2,
 
-let cameraYaw = 0;
-let cameraPitch = 0;
+  yaw: 0,
+  pitch: 0,
 
-let mouseLocked = false;
-
-let velocityY = 0;
-
-const movement = {
-  speed: 5,
-  sprintSpeed: 8,
-  slideSpeed: 10
+  grounded: true,
+  sliding: false,
+  sneaking: false
 };
 
-/* =========================
-   ELEMENTS
-========================= */
+/* =========================================
+   LOAD THREE.JS
+========================================= */
 
-const authScreen = document.getElementById("authScreen");
-const gameScreen = document.getElementById("gameScreen");
+async function loadThree() {
 
-const loginPanel = document.getElementById("loginPanel");
-const registerPanel = document.getElementById("registerPanel");
+  THREE =
+    await import(THREE_URL);
 
-const authMessage = document.getElementById("authMessage");
-
-const loginEmail = document.getElementById("loginEmail");
-const loginPassword = document.getElementById("loginPassword");
-
-const registerUsername =
-  document.getElementById("registerUsername");
-
-const registerEmail =
-  document.getElementById("registerEmail");
-
-const registerPassword =
-  document.getElementById("registerPassword");
-
-const loginButton =
-  document.getElementById("loginButton");
-
-const registerButton =
-  document.getElementById("registerButton");
-
-const playerName =
-  document.getElementById("playerName");
-
-const playerCount =
-  document.getElementById("playerCount");
-
-const chatForm =
-  document.getElementById("chatForm");
-
-const chatInput =
-  document.getElementById("chatInput");
-
-const chatMessages =
-  document.getElementById("chatMessages");
-
-const settingsOverlay =
-  document.getElementById("settingsOverlay");
-
-const settingsButton =
-  document.getElementById("settingsButton");
-
-const closeSettings =
-  document.getElementById("closeSettings");
-
-const resetControls =
-  document.getElementById("resetControls");
-
-const saveControls =
-  document.getElementById("saveControls");
-
-/* =========================
-   AUTH UI
-========================= */
-
-document
-  .getElementById("showRegister")
-  .addEventListener("click", () => {
-
-    loginPanel.classList.add("hidden");
-    registerPanel.classList.remove("hidden");
-
-    authMessage.textContent = "";
-  });
-
-document
-  .getElementById("showLogin")
-  .addEventListener("click", () => {
-
-    registerPanel.classList.add("hidden");
-    loginPanel.classList.remove("hidden");
-
-    authMessage.textContent = "";
-  });
-
-/* =========================
-   REGISTER
-========================= */
-
-registerButton.addEventListener("click", async () => {
-
-  const username = registerUsername.value.trim();
-  const email = registerEmail.value.trim();
-  const password = registerPassword.value;
-
-  authMessage.textContent = "";
-
-  if (!username || !email || !password) {
-
-    authMessage.textContent =
-      "Fill in every field.";
-
-    return;
-  }
-
-  registerButton.disabled = true;
-  registerButton.textContent = "CREATING...";
-
-  try {
-
-    const response = await fetch("/api/register", {
-
-      method: "POST",
-
-      headers: {
-        "Content-Type": "application/json"
-      },
-
-      body: JSON.stringify({
-        username,
-        email,
-        password
-      })
-
-    });
-
-    const data = await response.json();
-
-    if (!response.ok) {
-      throw new Error(
-        data.error || "Registration failed."
-      );
-    }
-
-    enterGame(data.player);
-
-  } catch (error) {
-
-    authMessage.textContent =
-      error.message;
-
-  } finally {
-
-    registerButton.disabled = false;
-    registerButton.textContent =
-      "CREATE ACCOUNT";
-  }
-});
-
-/* =========================
-   LOGIN
-========================= */
-
-loginButton.addEventListener("click", async () => {
-
-  const email = loginEmail.value.trim();
-  const password = loginPassword.value;
-
-  authMessage.textContent = "";
-
-  if (!email || !password) {
-
-    authMessage.textContent =
-      "Enter your email and password.";
-
-    return;
-  }
-
-  loginButton.disabled = true;
-  loginButton.textContent = "LOGGING IN...";
-
-  try {
-
-    const response = await fetch("/api/login", {
-
-      method: "POST",
-
-      headers: {
-        "Content-Type": "application/json"
-      },
-
-      body: JSON.stringify({
-        email,
-        password
-      })
-
-    });
-
-    const data = await response.json();
-
-    if (!response.ok) {
-      throw new Error(
-        data.error || "Login failed."
-      );
-    }
-
-    enterGame(data.player);
-
-  } catch (error) {
-
-    authMessage.textContent =
-      error.message;
-
-  } finally {
-
-    loginButton.disabled = false;
-    loginButton.textContent = "LOGIN";
-  }
-});
-
-/* =========================
-   AUTO LOGIN
-========================= */
-
-async function checkSession() {
-
-  try {
-
-    const response =
-      await fetch("/api/me");
-
-    if (!response.ok) {
-      return;
-    }
-
-    const data =
-      await response.json();
-
-    if (data.player) {
-      enterGame(data.player);
-    }
-
-  } catch {
-    // No active session.
-  }
+  startGame();
 }
 
-checkSession();
+/* =========================================
+   START GAME
+========================================= */
 
-/* =========================
-   ENTER GAME
-========================= */
+function startGame() {
 
-function enterGame(player) {
+  if (gameStarted) return;
 
-  currentPlayer = player;
+  gameStarted = true;
 
-  controls = {
-    ...DEFAULT_CONTROLS,
-    ...(player.controls || {})
-  };
-
-  playerName.textContent =
-    player.username;
-
-  authScreen.classList.add("hidden");
-  gameScreen.classList.remove("hidden");
-
-  initializeGame();
-
-  socket.emit("player:join", {
-    username: player.username
-  });
-}
-
-/* =========================
-   THREE.JS GAME
-========================= */
-
-function initializeGame() {
-
-  if (renderer) {
-    return;
-  }
-
-  scene = new THREE.Scene();
+  scene =
+    new THREE.Scene();
 
   scene.background =
-    new THREE.Color(0x101725);
+    new THREE.Color(0x101522);
 
   scene.fog =
-    new THREE.Fog(0x101725, 30, 150);
+    new THREE.Fog(
+      0x101522,
+      60,
+      350
+    );
 
   camera =
     new THREE.PerspectiveCamera(
@@ -328,18 +94,25 @@ function initializeGame() {
       window.innerWidth /
         window.innerHeight,
       0.1,
-      500
+      1000
     );
+
+  camera.position.set(
+    player.x,
+    player.y,
+    player.z
+  );
 
   renderer =
     new THREE.WebGLRenderer({
-      canvas:
-        document.getElementById("gameCanvas"),
       antialias: true
     });
 
   renderer.setPixelRatio(
-    Math.min(window.devicePixelRatio, 2)
+    Math.min(
+      window.devicePixelRatio,
+      2
+    )
   );
 
   renderer.setSize(
@@ -347,29 +120,62 @@ function initializeGame() {
     window.innerHeight
   );
 
-  clock = new THREE.Clock();
+  renderer.shadowMap.enabled = true;
+
+  document.body.appendChild(
+    renderer.domElement
+  );
+
+  clock =
+    new THREE.Clock();
 
   createWorld();
-  createLocalPlayer();
+
+  createHUD();
+
+  setupInput();
+
+  connectPlayer();
 
   window.addEventListener(
     "resize",
-    resizeGame
+    resize
   );
 
-  requestAnimationFrame(gameLoop);
+  animate();
 }
 
-/* =========================
+/* =========================================
    WORLD
-========================= */
+========================================= */
 
 function createWorld() {
 
+  /* Sky */
+
+  const sky =
+    new THREE.Mesh(
+      new THREE.SphereGeometry(
+        500,
+        32,
+        32
+      ),
+      new THREE.MeshBasicMaterial({
+        color: 0x172033,
+        side:
+          THREE.BackSide
+      })
+    );
+
+  scene.add(sky);
+
+  /* Lighting */
+
   const ambient =
-    new THREE.AmbientLight(
-      0xffffff,
-      1.2
+    new THREE.HemisphereLight(
+      0xbfd7ff,
+      0x18202b,
+      2
     );
 
   scene.add(ambient);
@@ -377,99 +183,172 @@ function createWorld() {
   const sun =
     new THREE.DirectionalLight(
       0xffffff,
-      1.5
+      2
     );
 
   sun.position.set(
-    30,
-    50,
-    20
+    80,
+    120,
+    40
   );
+
+  sun.castShadow = true;
+
+  sun.shadow.mapSize.width =
+    2048;
+
+  sun.shadow.mapSize.height =
+    2048;
 
   scene.add(sun);
 
   /* Ground */
 
-  const groundGeometry =
-    new THREE.PlaneGeometry(
-      250,
-      250
-    );
-
-  const groundMaterial =
-    new THREE.MeshStandardMaterial({
-      color: 0x202b3d
-    });
-
   const ground =
     new THREE.Mesh(
-      groundGeometry,
-      groundMaterial
+      new THREE.BoxGeometry(
+        300,
+        2,
+        300
+      ),
+      new THREE.MeshStandardMaterial({
+        color: 0x303846,
+        roughness: 0.9
+      })
     );
 
-  ground.rotation.x =
-    -Math.PI / 2;
+  ground.position.y = -1;
+
+  ground.receiveShadow = true;
 
   scene.add(ground);
 
-  /* Map platforms */
+  /* Grid */
 
-  createBlock(
-    0,
-    3,
-    -20,
+  const grid =
+    new THREE.GridHelper(
+      300,
+      60,
+      0x566070,
+      0x343c4b
+    );
+
+  grid.position.y =
+    0.01;
+
+  scene.add(grid);
+
+  /* Large map structures */
+
+  createBuilding(
+    -45,
+    8,
+    -35,
+    45,
+    16,
+    30
+  );
+
+  createBuilding(
+    50,
+    10,
+    -30,
+    35,
     20,
+    40
+  );
+
+  createBuilding(
+    -55,
+    7,
+    45,
+    35,
+    14,
+    35
+  );
+
+  createBuilding(
+    45,
     6,
-    8
-  );
-
-  createBlock(
-    -25,
-    2,
-    5,
-    10,
-    4,
-    20
-  );
-
-  createBlock(
-    25,
-    2,
-    5,
-    10,
-    4,
-    20
-  );
-
-  createBlock(
-    0,
-    1.5,
-    25,
-    30,
-    3,
-    8
-  );
-
-  createBlock(
-    -40,
-    4,
-    -25,
-    12,
-    8,
-    12
-  );
-
-  createBlock(
+    45,
     40,
-    4,
-    -25,
     12,
-    8,
+    30
+  );
+
+  /* Central tower */
+
+  createBuilding(
+    0,
+    15,
+    0,
+    24,
+    30,
+    24
+  );
+
+  /* Platforms */
+
+  createPlatform(
+    -20,
+    5,
+    0,
+    25,
+    2,
+    15
+  );
+
+  createPlatform(
+    25,
+    4,
+    15,
+    30,
+    2,
     12
   );
+
+  createPlatform(
+    0,
+    7,
+    -55,
+    30,
+    2,
+    14
+  );
+
+  /* Cover blocks */
+
+  for (
+    let i = 0;
+    i < 25;
+    i++
+  ) {
+
+    const x =
+      Math.random() * 180 - 90;
+
+    const z =
+      Math.random() * 180 - 90;
+
+    if (
+      Math.abs(x) < 15 &&
+      Math.abs(z) < 15
+    ) {
+      continue;
+    }
+
+    createCover(
+      x,
+      z
+    );
+  }
 }
 
-function createBlock(
+/* =========================================
+   BUILDINGS
+========================================= */
+
+function createBuilding(
   x,
   y,
   z,
@@ -478,169 +357,660 @@ function createBlock(
   depth
 ) {
 
-  const geometry =
-    new THREE.BoxGeometry(
-      width,
-      height,
-      depth
-    );
-
   const material =
     new THREE.MeshStandardMaterial({
-      color: 0x34445e
+      color: 0x596273,
+      roughness: 0.75
     });
 
-  const block =
+  const building =
     new THREE.Mesh(
-      geometry,
+      new THREE.BoxGeometry(
+        width,
+        height,
+        depth
+      ),
       material
     );
 
-  block.position.set(
+  building.position.set(
     x,
     y,
     z
   );
 
-  scene.add(block);
-}
+  building.castShadow = true;
+  building.receiveShadow = true;
 
-/* =========================
-   PLAYER
-========================= */
+  scene.add(building);
 
-function createLocalPlayer() {
+  /* Roof */
 
-  localPlayer =
-    createPlayerMesh(
-      currentPlayer.username
+  const roof =
+    new THREE.Mesh(
+      new THREE.BoxGeometry(
+        width + 2,
+        1,
+        depth + 2
+      ),
+      new THREE.MeshStandardMaterial({
+        color: 0x252c38
+      })
     );
 
-  localPlayer.position.set(
-    0,
-    1,
-    10
+  roof.position.set(
+    x,
+    y + height / 2 + 0.5,
+    z
   );
 
-  scene.add(localPlayer);
+  roof.castShadow = true;
 
-  camera.position.set(
-    0,
-    2.2,
-    0
-  );
-
-  localPlayer.add(camera);
+  scene.add(roof);
 }
 
-/* =========================
-   PLAYER MODEL
-========================= */
+/* =========================================
+   PLATFORM
+========================================= */
 
-function createPlayerMesh(username) {
+function createPlatform(
+  x,
+  y,
+  z,
+  width,
+  height,
+  depth
+) {
+
+  const platform =
+    new THREE.Mesh(
+      new THREE.BoxGeometry(
+        width,
+        height,
+        depth
+      ),
+      new THREE.MeshStandardMaterial({
+        color: 0x3d526b
+      })
+    );
+
+  platform.position.set(
+    x,
+    y,
+    z
+  );
+
+  platform.castShadow = true;
+  platform.receiveShadow = true;
+
+  scene.add(platform);
+}
+
+/* =========================================
+   COVER
+========================================= */
+
+function createCover(
+  x,
+  z
+) {
+
+  const width =
+    3 +
+    Math.random() * 4;
+
+  const height =
+    2 +
+    Math.random() * 3;
+
+  const depth =
+    3 +
+    Math.random() * 4;
+
+  const cover =
+    new THREE.Mesh(
+      new THREE.BoxGeometry(
+        width,
+        height,
+        depth
+      ),
+      new THREE.MeshStandardMaterial({
+        color: 0x697487
+      })
+    );
+
+  cover.position.set(
+    x,
+    height / 2,
+    z
+  );
+
+  cover.castShadow = true;
+  cover.receiveShadow = true;
+
+  scene.add(cover);
+}
+
+/* =========================================
+   INPUT
+========================================= */
+
+function setupInput() {
+
+  window.addEventListener(
+    "keydown",
+    event => {
+
+      keys[event.code] = true;
+
+      if (
+        event.code ===
+        "Space"
+      ) {
+
+        jump();
+      }
+    }
+  );
+
+  window.addEventListener(
+    "keyup",
+    event => {
+
+      keys[event.code] = false;
+    }
+  );
+
+  window.addEventListener(
+    "mousemove",
+    event => {
+
+      if (
+        document.pointerLockElement !==
+        renderer.domElement
+      ) {
+        return;
+      }
+
+      player.yaw -=
+        event.movementX *
+        0.002;
+
+      player.pitch -=
+        event.movementY *
+        0.002;
+
+      player.pitch =
+        Math.max(
+          -1.45,
+          Math.min(
+            1.45,
+            player.pitch
+          )
+        );
+    }
+  );
+
+  renderer.domElement.addEventListener(
+    "click",
+    () => {
+
+      renderer.domElement.requestPointerLock();
+    }
+  );
+}
+
+/* =========================================
+   MOVEMENT
+========================================= */
+
+function updateMovement(delta) {
+
+  let moveX = 0;
+  let moveZ = 0;
+
+  if (keys[controls.forward]) {
+    moveZ -= 1;
+  }
+
+  if (keys[controls.backward]) {
+    moveZ += 1;
+  }
+
+  if (keys[controls.left]) {
+    moveX -= 1;
+  }
+
+  if (keys[controls.right]) {
+    moveX += 1;
+  }
+
+  const moving =
+    moveX !== 0 ||
+    moveZ !== 0;
+
+  const sprinting =
+    keys[controls.sprint] &&
+    moving &&
+    !keys[controls.sneak];
+
+  player.sneaking =
+    keys[controls.sneak] &&
+    moving;
+
+  if (
+    keys[controls.slide] &&
+    moving &&
+    !player.sliding &&
+    player.grounded
+  ) {
+
+    player.sliding = true;
+
+    setTimeout(() => {
+      player.sliding = false;
+    }, 500);
+  }
+
+  let speed =
+    player.speed;
+
+  if (sprinting) {
+    speed =
+      player.sprintSpeed;
+  }
+
+  if (player.sneaking) {
+    speed =
+      player.sneakSpeed;
+  }
+
+  if (player.sliding) {
+    speed =
+      player.sprintSpeed * 1.35;
+  }
+
+  if (moving) {
+
+    const length =
+      Math.sqrt(
+        moveX * moveX +
+        moveZ * moveZ
+      );
+
+    moveX /= length;
+    moveZ /= length;
+
+    const sin =
+      Math.sin(player.yaw);
+
+    const cos =
+      Math.cos(player.yaw);
+
+    const worldX =
+      moveX * cos -
+      moveZ * sin;
+
+    const worldZ =
+      moveX * sin +
+      moveZ * cos;
+
+    player.x +=
+      worldX *
+      speed *
+      delta;
+
+    player.z +=
+      worldZ *
+      speed *
+      delta;
+  }
+
+  /* Gravity */
+
+  player.velocityY -=
+    24 * delta;
+
+  player.y +=
+    player.velocityY *
+    delta;
+
+  if (player.y <= 2) {
+
+    player.y = 2;
+
+    player.velocityY = 0;
+
+    player.grounded = true;
+
+  } else {
+
+    player.grounded = false;
+  }
+
+  /* Keep player inside map */
+
+  player.x =
+    Math.max(
+      -145,
+      Math.min(
+        145,
+        player.x
+      )
+    );
+
+  player.z =
+    Math.max(
+      -145,
+      Math.min(
+        145,
+        player.z
+      )
+    );
+
+  camera.position.set(
+    player.x,
+    player.y -
+      (player.sneaking ? 0.55 : 0),
+    player.z
+  );
+
+  camera.rotation.order =
+    "YXZ";
+
+  camera.rotation.y =
+    player.yaw;
+
+  camera.rotation.x =
+    player.pitch;
+
+  /* Send movement */
+
+  if (socket.connected) {
+
+    socket.emit(
+      "player:update",
+      {
+        x: player.x,
+        y: player.y,
+        z: player.z,
+        rotationY: player.yaw,
+
+        state:
+          player.sliding
+            ? "sliding"
+            : player.sneaking
+              ? "sneaking"
+              : sprinting
+                ? "sprinting"
+                : "normal"
+      }
+    );
+  }
+}
+
+/* =========================================
+   JUMP
+========================================= */
+
+function jump() {
+
+  if (!player.grounded) {
+    return;
+  }
+
+  player.velocityY =
+    9;
+
+  player.grounded =
+    false;
+}
+
+/* =========================================
+   MULTIPLAYER
+========================================= */
+
+function connectPlayer() {
+
+  socket.on(
+    "connect",
+    () => {
+
+      socket.emit(
+        "player:join"
+      );
+    }
+  );
+
+  socket.on(
+    "players:list",
+    data => {
+
+      for (
+        const p of data.players
+      ) {
+
+        createRemotePlayer(p);
+      }
+    }
+  );
+
+  socket.on(
+    "player:joined",
+    p => {
+
+      createRemotePlayer(p);
+
+      addChatMessage(
+        "SYSTEM",
+        `${p.username} joined the arena.`
+      );
+    }
+  );
+
+  socket.on(
+    "player:update",
+    p => {
+
+      updateRemotePlayer(p);
+    }
+  );
+
+  socket.on(
+    "player:left",
+    id => {
+
+      removeRemotePlayer(id);
+    }
+  );
+
+  socket.on(
+    "players:count",
+    count => {
+
+      const element =
+        document.getElementById(
+          "player-count"
+        );
+
+      if (element) {
+        element.textContent =
+          `PLAYERS ${count}`;
+      }
+    }
+  );
+
+  socket.on(
+    "chat:message",
+    data => {
+
+      addChatMessage(
+        data.username,
+        data.message
+      );
+    }
+  );
+
+  socket.on(
+    "auth:error",
+    data => {
+
+      addChatMessage(
+        "SYSTEM",
+        data.error
+      );
+    }
+  );
+}
+
+/* =========================================
+   REMOTE PLAYER
+========================================= */
+
+function createRemotePlayer(p) {
+
+  if (
+    remotePlayers.has(p.id)
+  ) {
+    return;
+  }
 
   const group =
     new THREE.Group();
 
   /* Body */
 
-  const bodyGeometry =
-    new THREE.BoxGeometry(
-      0.8,
-      1.1,
-      0.45
-    );
-
-  const bodyMaterial =
-    new THREE.MeshStandardMaterial({
-      color: 0x5f7db8
-    });
-
   const body =
     new THREE.Mesh(
-      bodyGeometry,
-      bodyMaterial
+      new THREE.BoxGeometry(
+        0.9,
+        1.5,
+        0.55
+      ),
+      new THREE.MeshStandardMaterial({
+        color: 0x4f8cff
+      })
     );
 
-  body.position.y = 0.7;
+  body.position.y =
+    0.75;
+
+  body.castShadow = true;
 
   group.add(body);
 
   /* Head */
 
-  const headGeometry =
-    new THREE.BoxGeometry(
-      0.6,
-      0.6,
-      0.6
-    );
-
-  const headMaterial =
-    new THREE.MeshStandardMaterial({
-      color: 0xd2a27c
-    });
-
   const head =
     new THREE.Mesh(
-      headGeometry,
-      headMaterial
+      new THREE.BoxGeometry(
+        0.65,
+        0.65,
+        0.65
+      ),
+      new THREE.MeshStandardMaterial({
+        color: 0xd6a47a
+      })
     );
 
-  head.position.y = 1.55;
+  head.position.y =
+    1.8;
+
+  head.castShadow = true;
 
   group.add(head);
 
   /* Name */
 
-  const label =
-    createNameLabel(username);
+  const name =
+    createNameLabel(
+      p.username
+    );
 
-  label.position.y = 2.15;
+  name.position.y =
+    2.5;
 
-  group.add(label);
+  group.add(name);
 
-  return group;
+  group.position.set(
+    p.x,
+    p.y - 2,
+    p.z
+  );
+
+  scene.add(group);
+
+  remotePlayers.set(
+    p.id,
+    {
+      object: group,
+      targetX: p.x,
+      targetY: p.y - 2,
+      targetZ: p.z,
+      targetRotation: p.rotationY || 0
+    }
+  );
 }
 
-/* =========================
+/* =========================================
    NAME LABEL
-========================= */
+========================================= */
 
-function createNameLabel(username) {
+function createNameLabel(
+  text
+) {
 
   const canvas =
-    document.createElement("canvas");
+    document.createElement(
+      "canvas"
+    );
 
   canvas.width = 512;
   canvas.height = 128;
 
-  const ctx =
-    canvas.getContext("2d");
+  const context =
+    canvas.getContext(
+      "2d"
+    );
 
-  ctx.clearRect(
+  context.clearRect(
     0,
     0,
     canvas.width,
     canvas.height
   );
 
-  ctx.fillStyle =
-    "white";
-
-  ctx.font =
+  context.font =
     "bold 42px Arial";
 
-  ctx.textAlign =
+  context.textAlign =
     "center";
 
-  ctx.fillText(
-    username,
+  context.fillStyle =
+    "#ffffff";
+
+  context.strokeStyle =
+    "#000000";
+
+  context.lineWidth =
+    8;
+
+  context.strokeText(
+    text,
     256,
-    75
+    70
+  );
+
+  context.fillText(
+    text,
+    256,
+    70
   );
 
   const texture =
-    new THREE.CanvasTexture(canvas);
+    new THREE.CanvasTexture(
+      canvas
+    );
 
   const material =
     new THREE.SpriteMaterial({
@@ -649,7 +1019,9 @@ function createNameLabel(username) {
     });
 
   const sprite =
-    new THREE.Sprite(material);
+    new THREE.Sprite(
+      material
+    );
 
   sprite.scale.set(
     4,
@@ -660,717 +1032,266 @@ function createNameLabel(username) {
   return sprite;
 }
 
-/* =========================
-   KEYBOARD
-========================= */
+/* =========================================
+   UPDATE REMOTE PLAYER
+========================================= */
 
-window.addEventListener(
-  "keydown",
-  event => {
+function updateRemotePlayer(p) {
 
-    if (
-      settingsOverlay &&
-      !settingsOverlay.classList.contains(
-        "hidden"
-      )
-    ) {
+  const remote =
+    remotePlayers.get(p.id);
 
-      return;
-    }
+  if (!remote) {
 
-    keys.add(event.code);
+    createRemotePlayer(p);
 
-    if (
-      event.code === "Escape"
-    ) {
+    return;
+  }
 
-      toggleSettings();
+  remote.targetX =
+    p.x;
 
-      return;
-    }
+  remote.targetY =
+    p.y - 2;
 
-    if (
-      event.code === "Enter"
-    ) {
+  remote.targetZ =
+    p.z;
+
+  remote.targetRotation =
+    p.rotationY || 0;
+}
+
+/* =========================================
+   REMOVE REMOTE PLAYER
+========================================= */
+
+function removeRemotePlayer(id) {
+
+  const remote =
+    remotePlayers.get(id);
+
+  if (!remote) {
+    return;
+  }
+
+  scene.remove(
+    remote.object
+  );
+
+  remotePlayers.delete(
+    id
+  );
+}
+
+/* =========================================
+   INTERPOLATE PLAYERS
+========================================= */
+
+function updateRemotePlayers() {
+
+  for (
+    const remote of
+    remotePlayers.values()
+  ) {
+
+    remote.object.position.x +=
+      (
+        remote.targetX -
+        remote.object.position.x
+      ) *
+      0.25;
+
+    remote.object.position.y +=
+      (
+        remote.targetY -
+        remote.object.position.y
+      ) *
+      0.25;
+
+    remote.object.position.z +=
+      (
+        remote.targetZ -
+        remote.object.position.z
+      ) *
+      0.25;
+
+    remote.object.rotation.y +=
+      (
+        remote.targetRotation -
+        remote.object.rotation.y
+      ) *
+      0.25;
+  }
+}
+
+/* =========================================
+   HUD
+========================================= */
+
+function createHUD() {
+
+  const hud =
+    document.createElement(
+      "div"
+    );
+
+  hud.id =
+    "nova-hud";
+
+  hud.innerHTML = `
+
+    <div id="crosshair">
+      +
+    </div>
+
+    <div id="player-count">
+      PLAYERS 0
+    </div>
+
+    <div id="chat-box">
+
+      <div id="chat-messages"></div>
+
+      <input
+        id="chat-input"
+        maxlength="200"
+        placeholder="Press Enter to chat..."
+      />
+
+    </div>
+
+    <div id="controls-help">
+
+      W A S D — MOVE<br>
+      R — SPRINT<br>
+      SHIFT — SLIDE<br>
+      C — SNEAK<br>
+      SPACE — JUMP<br>
+      ESC — SETTINGS
+
+    </div>
+  `;
+
+  document.body.appendChild(
+    hud
+  );
+
+  const chatInput =
+    document.getElementById(
+      "chat-input"
+    );
+
+  chatInput.addEventListener(
+    "keydown",
+    event => {
 
       if (
-        document.activeElement ===
-        chatInput
+        event.key !==
+        "Enter"
       ) {
         return;
       }
 
-      chatInput.focus();
-    }
-  }
-);
+      const message =
+        chatInput.value.trim();
 
-window.addEventListener(
-  "keyup",
-  event => {
-
-    keys.delete(event.code);
-  }
-);
-
-/* =========================
-   MOUSE LOOK
-========================= */
-
-document
-  .getElementById("gameCanvas")
-  .addEventListener(
-    "click",
-    () => {
-
-      if (
-        settingsOverlay.classList.contains(
-          "hidden"
-        )
-      ) {
-
-        document.body.requestPointerLock();
+      if (!message) {
+        return;
       }
-    }
-  );
 
-document.addEventListener(
-  "pointerlockchange",
-  () => {
-
-    mouseLocked =
-      document.pointerLockElement ===
-      document.body;
-  }
-);
-
-document.addEventListener(
-  "mousemove",
-  event => {
-
-    if (!mouseLocked) {
-      return;
-    }
-
-    cameraYaw -=
-      event.movementX * 0.002;
-
-    cameraPitch -=
-      event.movementY * 0.002;
-
-    cameraPitch =
-      Math.max(
-        -1.3,
-        Math.min(
-          1.3,
-          cameraPitch
-        )
+      socket.emit(
+        "chat:send",
+        message
       );
-  }
-);
 
-/* =========================
-   MOVEMENT
-========================= */
-
-function updateMovement(delta) {
-
-  if (!localPlayer) {
-    return;
-  }
-
-  let forward = 0;
-  let right = 0;
-
-  if (keys.has(controls.forward)) {
-    forward += 1;
-  }
-
-  if (keys.has(controls.backward)) {
-    forward -= 1;
-  }
-
-  if (keys.has(controls.right)) {
-    right += 1;
-  }
-
-  if (keys.has(controls.left)) {
-    right -= 1;
-  }
-
-  const moving =
-    forward !== 0 ||
-    right !== 0;
-
-  let speed =
-    movement.speed;
-
-  const sprinting =
-    keys.has(controls.sprint) &&
-    moving;
-
-  const sneaking =
-    keys.has(controls.sneak);
-
-  const sliding =
-    keys.has(controls.slide) &&
-    moving;
-
-  if (sprinting) {
-    speed =
-      movement.sprintSpeed;
-  }
-
-  if (sliding) {
-    speed =
-      movement.slideSpeed;
-  }
-
-  if (sneaking) {
-    speed *= 0.55;
-  }
-
-  const length =
-    Math.sqrt(
-      forward * forward +
-      right * right
-    );
-
-  if (length > 0) {
-
-    forward /= length;
-    right /= length;
-  }
-
-  const direction =
-    new THREE.Vector3(
-      right,
-      0,
-      -forward
-    );
-
-  direction.applyAxisAngle(
-    new THREE.Vector3(0, 1, 0),
-    cameraYaw
-  );
-
-  localPlayer.position.x +=
-    direction.x *
-    speed *
-    delta;
-
-  localPlayer.position.z +=
-    direction.z *
-    speed *
-    delta;
-
-  /* Simple gravity */
-
-  velocityY -=
-    20 * delta;
-
-  localPlayer.position.y +=
-    velocityY * delta;
-
-  if (
-    localPlayer.position.y < 1
-  ) {
-
-    localPlayer.position.y = 1;
-    velocityY = 0;
-  }
-
-  localPlayer.rotation.y =
-    cameraYaw;
-
-  camera.rotation.x =
-    cameraPitch;
-
-  sendPlayerUpdate(
-    sprinting,
-    sliding,
-    sneaking
+      chatInput.value = "";
+    }
   );
 }
 
-/* =========================
-   SEND POSITION
-========================= */
+/* =========================================
+   CHAT
+========================================= */
 
-let lastNetworkUpdate = 0;
-
-function sendPlayerUpdate(
-  sprinting,
-  sliding,
-  sneaking
+function addChatMessage(
+  username,
+  message
 ) {
 
-  const now =
-    performance.now();
+  const container =
+    document.getElementById(
+      "chat-messages"
+    );
 
-  if (
-    now - lastNetworkUpdate <
-    50
-  ) {
+  if (!container) {
     return;
   }
 
-  lastNetworkUpdate = now;
-
-  let state = "normal";
-
-  if (sliding) {
-    state = "sliding";
-  } else if (sprinting) {
-    state = "sprinting";
-  } else if (sneaking) {
-    state = "sneaking";
-  }
-
-  socket.emit(
-    "player:update",
-    {
-      x: localPlayer.position.x,
-      y: localPlayer.position.y,
-      z: localPlayer.position.z,
-      rotationY: cameraYaw,
-      state
-    }
-  );
-}
-
-/* =========================
-   REMOTE PLAYERS
-========================= */
-
-socket.on(
-  "players:list",
-  data => {
-
-    for (
-      const player of data.players
-    ) {
-
-      if (
-        player.id === socket.id
-      ) {
-        continue;
-      }
-
-      addRemotePlayer(player);
-    }
-
-    updatePlayerCount();
-  }
-);
-
-socket.on(
-  "player:joined",
-  player => {
-
-    if (
-      player.id === socket.id
-    ) {
-      return;
-    }
-
-    addRemotePlayer(player);
-
-    updatePlayerCount();
-  }
-);
-
-socket.on(
-  "player:update",
-  player => {
-
-    const mesh =
-      remotePlayers.get(
-        player.id
-      );
-
-    if (!mesh) {
-      return;
-    }
-
-    mesh.position.x =
-      player.x;
-
-    mesh.position.y =
-      player.y;
-
-    mesh.position.z =
-      player.z;
-
-    mesh.rotation.y =
-      player.rotationY;
-  }
-);
-
-socket.on(
-  "player:left",
-  id => {
-
-    const mesh =
-      remotePlayers.get(id);
-
-    if (!mesh) {
-      return;
-    }
-
-    scene.remove(mesh);
-
-    remotePlayers.delete(id);
-
-    updatePlayerCount();
-  }
-);
-
-function addRemotePlayer(player) {
-
-  if (
-    remotePlayers.has(player.id)
-  ) {
-    return;
-  }
-
-  const mesh =
-    createPlayerMesh(
-      player.username
+  const line =
+    document.createElement(
+      "div"
     );
 
-  mesh.position.set(
-    player.x || 0,
-    player.y || 1,
-    player.z || 0
-  );
+  line.className =
+    "chat-line";
 
-  mesh.rotation.y =
-    player.rotationY || 0;
-
-  scene.add(mesh);
-
-  remotePlayers.set(
-    player.id,
-    mesh
-  );
-
-  updatePlayerCount();
-}
-
-function updatePlayerCount() {
-
-  playerCount.textContent =
-    remotePlayers.size + 1;
-}
-
-/* =========================
-   CHAT
-========================= */
-
-chatForm.addEventListener(
-  "submit",
-  event => {
-
-    event.preventDefault();
-
-    const message =
-      chatInput.value.trim();
-
-    if (!message) {
-      return;
-    }
-
-    socket.emit(
-      "chat:send",
+  line.innerHTML =
+    `<strong>${escapeHTML(
+      username
+    )}:</strong> ${escapeHTML(
       message
-    );
+    )}`;
 
-    chatInput.value = "";
-  }
-);
-
-socket.on(
-  "chat:message",
-  data => {
-
-    const message =
-      document.createElement("div");
-
-    message.className =
-      "chatMessage";
-
-    const username =
-      document.createElement("span");
-
-    username.className =
-      "chatUsername";
-
-    username.textContent =
-      data.username + ": ";
-
-    const text =
-      document.createElement("span");
-
-    text.textContent =
-      data.message;
-
-    message.appendChild(username);
-    message.appendChild(text);
-
-    chatMessages.appendChild(
-      message
-    );
-
-    chatMessages.scrollTop =
-      chatMessages.scrollHeight;
-
-    while (
-      chatMessages.children.length >
-      50
-    ) {
-
-      chatMessages.removeChild(
-        chatMessages.firstChild
-      );
-    }
-  }
-);
-
-/* =========================
-   SETTINGS
-========================= */
-
-settingsButton.addEventListener(
-  "click",
-  toggleSettings
-);
-
-closeSettings.addEventListener(
-  "click",
-  () => {
-
-    settingsOverlay.classList.add(
-      "hidden"
-    );
-
-    document.body.requestPointerLock();
-  }
-);
-
-function toggleSettings() {
-
-  settingsOverlay.classList.toggle(
-    "hidden"
+  container.appendChild(
+    line
   );
 
-  if (
-    settingsOverlay.classList.contains(
-      "hidden"
-    )
+  while (
+    container.children.length >
+    8
   ) {
 
-    document.body.requestPointerLock();
-
-  } else {
-
-    if (
-      document.pointerLockElement
-    ) {
-      document.exitPointerLock();
-    }
-  }
-}
-
-/* =========================
-   CONTROL REBINDING
-========================= */
-
-let waitingForControl = null;
-
-document
-  .querySelectorAll(
-    "[data-control]"
-  )
-  .forEach(button => {
-
-    button.addEventListener(
-      "click",
-      () => {
-
-        if (
-          waitingForControl
-        ) {
-
-          return;
-        }
-
-        waitingForControl =
-          button.dataset.control;
-
-        button.textContent =
-          "PRESS KEY...";
-
-        const handler =
-          event => {
-
-            event.preventDefault();
-
-            controls[
-              waitingForControl
-            ] = event.code;
-
-            button.textContent =
-              formatKey(event.code);
-
-            waitingForControl =
-              null;
-
-            window.removeEventListener(
-              "keydown",
-              handler
-            );
-          };
-
-        window.addEventListener(
-          "keydown",
-          handler
-        );
-      }
+    container.removeChild(
+      container.firstChild
     );
-  });
+  }
 
-function formatKey(code) {
-
-  const names = {
-    KeyW: "W",
-    KeyA: "A",
-    KeyS: "S",
-    KeyD: "D",
-    KeyR: "R",
-    KeyC: "C",
-    KeyQ: "Q",
-    ShiftLeft: "SHIFT",
-    ShiftRight: "SHIFT",
-    Digit1: "1",
-    Digit2: "2",
-    Digit3: "3"
-  };
-
-  return names[code] || code;
+  container.scrollTop =
+    container.scrollHeight;
 }
 
-resetControls.addEventListener(
-  "click",
-  () => {
+function escapeHTML(
+  text
+) {
 
-    controls = {
-      ...DEFAULT_CONTROLS
-    };
-
-    refreshControlButtons();
-  }
-);
-
-function refreshControlButtons() {
-
-  document
-    .querySelectorAll(
-      "[data-control]"
+  return String(text)
+    .replaceAll(
+      "&",
+      "&amp;"
     )
-    .forEach(button => {
-
-      const control =
-        button.dataset.control;
-
-      button.textContent =
-        formatKey(
-          controls[control]
-        );
-    });
-}
-
-saveControls.addEventListener(
-  "click",
-  async () => {
-
-    try {
-
-      const response =
-        await fetch(
-          "/api/controls",
-          {
-            method: "PUT",
-
-            headers: {
-              "Content-Type":
-                "application/json"
-            },
-
-            body: JSON.stringify({
-              controls
-            })
-          }
-        );
-
-      if (!response.ok) {
-        throw new Error(
-          "Could not save controls."
-        );
-      }
-
-      saveControls.textContent =
-        "SAVED!";
-
-      setTimeout(() => {
-
-        saveControls.textContent =
-          "SAVE";
-
-      }, 1200);
-
-    } catch (error) {
-
-      alert(error.message);
-    }
-  }
-);
-
-refreshControlButtons();
-
-/* =========================
-   RENDER LOOP
-========================= */
-
-function gameLoop() {
-
-  requestAnimationFrame(
-    gameLoop
-  );
-
-  const delta =
-    Math.min(
-      clock.getDelta(),
-      0.05
+    .replaceAll(
+      "<",
+      "&lt;"
+    )
+    .replaceAll(
+      ">",
+      "&gt;"
+    )
+    .replaceAll(
+      '"',
+      "&quot;"
+    )
+    .replaceAll(
+      "'",
+      "&#039;"
     );
-
-  updateMovement(delta);
-
-  renderer.render(
-    scene,
-    camera
-  );
 }
 
-/* =========================
+/* =========================================
    RESIZE
-========================= */
+========================================= */
 
-function resizeGame() {
-
-  if (!camera || !renderer) {
-    return;
-  }
+function resize() {
 
   camera.aspect =
     window.innerWidth /
@@ -1383,3 +1304,37 @@ function resizeGame() {
     window.innerHeight
   );
 }
+
+/* =========================================
+   GAME LOOP
+========================================= */
+
+function animate() {
+
+  requestAnimationFrame(
+    animate
+  );
+
+  const delta =
+    Math.min(
+      clock.getDelta(),
+      0.05
+    );
+
+  updateMovement(
+    delta
+  );
+
+  updateRemotePlayers();
+
+  renderer.render(
+    scene,
+    camera
+  );
+}
+
+/* =========================================
+   START
+========================================= */
+
+loadThree();
