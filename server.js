@@ -1,863 +1,612 @@
 const express = require("express");
 const http = require("http");
 const path = require("path");
-const bcrypt = require("bcryptjs");
-const { Pool } = require("pg");
-const session = require("express-session");
-const PgSession = require("connect-pg-simple")(session);
 const { Server } = require("socket.io");
 
 const app = express();
 const server = http.createServer(app);
 
-const PORT = process.env.PORT || 10000;
-
-/* =========================
-   DATABASE
-========================= */
-
-if (!process.env.DATABASE_URL) {
-  console.error("DATABASE_URL is missing.");
-  process.exit(1);
-}
-
-const pool = new Pool({
-  connectionString: process.env.DATABASE_URL,
-  ssl: {
-    rejectUnauthorized: false
-  }
+const io = new Server(server, {
+    cors: {
+        origin: "*"
+    }
 });
 
-/* =========================
-   SESSION
-========================= */
+const PORT = process.env.PORT || 3000;
 
-const sessionMiddleware = session({
-  store: new PgSession({
-    pool,
-    tableName: "user_sessions",
-    createTableIfMissing: true
-  }),
 
-  secret:
-    process.env.SESSION_SECRET ||
-    "CHANGE_THIS_SECRET_IN_RENDER",
-
-  resave: false,
-
-  saveUninitialized: false,
-
-  cookie: {
-    httpOnly: true,
-    secure: process.env.NODE_ENV === "production",
-    sameSite: "lax",
-    maxAge: 1000 * 60 * 60 * 24 * 30
-  }
-});
-
-/* =========================
-   EXPRESS
-========================= */
+// ============================================================
+// EXPRESS
+// ============================================================
 
 app.use(express.json());
 
-app.use(sessionMiddleware);
-
 app.use(
-  express.static(
-    path.join(__dirname, "public")
-  )
+    express.static(
+        path.join(__dirname, "public")
+    )
 );
 
-/* =========================
-   SOCKET.IO
-========================= */
 
-const io = new Server(server, {
-  cors: {
-    origin: true,
-    credentials: true
-  }
+// ============================================================
+// BASIC WEBSITE ROUTE
+// ============================================================
+
+app.get("/", (req, res) => {
+
+    res.sendFile(
+        path.join(
+            __dirname,
+            "public",
+            "index.html"
+        )
+    );
+
 });
 
-io.engine.use(sessionMiddleware);
 
-/* =========================
-   DATABASE SETUP
-========================= */
+// ============================================================
+// PLAYERS
+// ============================================================
 
-async function setupDatabase() {
+const players = {};
 
-  await pool.query(`
-    CREATE TABLE IF NOT EXISTS players (
-      id SERIAL PRIMARY KEY,
-      username VARCHAR(20) UNIQUE NOT NULL,
-      email VARCHAR(255) UNIQUE NOT NULL,
-      password_hash TEXT NOT NULL,
-      controls JSONB NOT NULL DEFAULT '{}'::jsonb,
-      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-    );
-  `);
 
-  console.log("Database ready.");
+// ============================================================
+// PLAYER DATA
+// ============================================================
+
+function createPlayer(socket, data = {}) {
+
+    return {
+
+        id: socket.id,
+
+        username:
+            data.username ||
+            "Player",
+
+        x:
+            Number(data.x) || 0,
+
+        y:
+            Number(data.y) || 1.7,
+
+        z:
+            Number(data.z) || 5,
+
+        rotationY:
+            Number(data.rotationY) || 0,
+
+        health: 100,
+
+        kills: 0,
+
+        deaths: 0,
+
+        streak: 0
+
+    };
+
 }
 
-/* =========================
-   AUTH HELPERS
-========================= */
 
-function validEmail(email) {
-  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
-}
+// ============================================================
+// CONNECTION
+// ============================================================
 
-function validUsername(username) {
-  return /^[a-zA-Z0-9_-]{3,20}$/.test(username);
-}
+io.on("connection", (socket) => {
 
-function cleanPlayer(player) {
-  return {
-    id: player.id,
-    username: player.username,
-    email: player.email,
-    controls: player.controls || {}
-  };
-}
-
-/* =========================
-   REGISTER
-========================= */
-
-app.post("/api/register", async (req, res) => {
-
-  try {
-
-    let {
-      username,
-      email,
-      password
-    } = req.body;
-
-    username =
-      String(username || "").trim();
-
-    email =
-      String(email || "")
-        .trim()
-        .toLowerCase();
-
-    password =
-      String(password || "");
-
-    if (!validUsername(username)) {
-      return res.status(400).json({
-        error:
-          "Username must be 3-20 characters and only use letters, numbers, _ or -."
-      });
-    }
-
-    if (!validEmail(email)) {
-      return res.status(400).json({
-        error: "Enter a valid email."
-      });
-    }
-
-    if (password.length < 8) {
-      return res.status(400).json({
-        error:
-          "Password must be at least 8 characters."
-      });
-    }
-
-    const existing =
-      await pool.query(
-        `
-        SELECT id
-        FROM players
-        WHERE LOWER(username) = LOWER($1)
-           OR LOWER(email) = LOWER($2)
-        LIMIT 1
-        `,
-        [username, email]
-      );
-
-    if (existing.rows.length > 0) {
-      return res.status(409).json({
-        error:
-          "That username or email is already registered."
-      });
-    }
-
-    const passwordHash =
-      await bcrypt.hash(password, 12);
-
-    const result =
-      await pool.query(
-        `
-        INSERT INTO players
-          (username, email, password_hash, controls)
-        VALUES
-          ($1, $2, $3, $4)
-        RETURNING
-          id,
-          username,
-          email,
-          controls
-        `,
-        [
-          username,
-          email,
-          passwordHash,
-          JSON.stringify({})
-        ]
-      );
-
-    const player = result.rows[0];
-
-    req.session.playerId = player.id;
-
-    req.session.save(err => {
-
-      if (err) {
-        console.error(
-          "Session save error:",
-          err
-        );
-
-        return res.status(500).json({
-          error:
-            "Account created, but session could not be saved."
-        });
-      }
-
-      res.status(201).json({
-        player: cleanPlayer(player)
-      });
-    });
-
-  } catch (error) {
-
-    console.error(
-      "Register error:",
-      error
+    console.log(
+        "Player connected:",
+        socket.id
     );
 
-    res.status(500).json({
-      error:
-        "Server error while creating account."
-    });
-  }
-});
 
-/* =========================
-   LOGIN
-========================= */
+    // ========================================================
+    // PLAYER READY
+    // ========================================================
 
-app.post("/api/login", async (req, res) => {
+    socket.on(
+        "playerReady",
+        (data = {}) => {
 
-  try {
+            const player =
+                createPlayer(
+                    socket,
+                    data
+                );
 
-    const email =
-      String(req.body.email || "")
-        .trim()
-        .toLowerCase();
 
-    const password =
-      String(req.body.password || "");
+            players[
+                socket.id
+            ] = player;
 
-    const result =
-      await pool.query(
-        `
-        SELECT *
-        FROM players
-        WHERE LOWER(email) = LOWER($1)
-        LIMIT 1
-        `,
-        [email]
-      );
 
-    if (result.rows.length === 0) {
-      return res.status(401).json({
-        error:
-          "Incorrect email or password."
-      });
-    }
+            // Send all existing players
+            // to the new player
 
-    const player = result.rows[0];
+            socket.emit(
+                "players",
+                players
+            );
 
-    const correct =
-      await bcrypt.compare(
-        password,
-        player.password_hash
-      );
 
-    if (!correct) {
-      return res.status(401).json({
-        error:
-          "Incorrect email or password."
-      });
-    }
+            // Tell everyone else
+            // that this player joined
 
-    req.session.playerId = player.id;
+            socket.broadcast.emit(
+                "playerJoined",
+                player
+            );
 
-    req.session.save(err => {
 
-      if (err) {
-        console.error(
-          "Session save error:",
-          err
-        );
+            console.log(
+                `${player.username} joined NovaStrike`
+            );
 
-        return res.status(500).json({
-          error:
-            "Login succeeded, but session could not be saved."
-        });
-      }
-
-      res.json({
-        player: cleanPlayer(player)
-      });
-    });
-
-  } catch (error) {
-
-    console.error(
-      "Login error:",
-      error
-    );
-
-    res.status(500).json({
-      error:
-        "Server error while logging in."
-    });
-  }
-});
-
-/* =========================
-   CURRENT ACCOUNT
-========================= */
-
-app.get("/api/me", async (req, res) => {
-
-  try {
-
-    if (!req.session.playerId) {
-      return res.status(401).json({
-        error: "Not logged in."
-      });
-    }
-
-    const result =
-      await pool.query(
-        `
-        SELECT
-          id,
-          username,
-          email,
-          controls
-        FROM players
-        WHERE id = $1
-        `,
-        [req.session.playerId]
-      );
-
-    if (result.rows.length === 0) {
-
-      req.session.destroy(() => {});
-
-      return res.status(401).json({
-        error: "Account not found."
-      });
-    }
-
-    res.json({
-      player:
-        cleanPlayer(result.rows[0])
-    });
-
-  } catch (error) {
-
-    console.error(
-      "Session error:",
-      error
-    );
-
-    res.status(500).json({
-      error: "Server error."
-    });
-  }
-});
-
-/* =========================
-   LOGOUT
-========================= */
-
-app.post("/api/logout", (req, res) => {
-
-  req.session.destroy(err => {
-
-    if (err) {
-      return res.status(500).json({
-        error: "Could not log out."
-      });
-    }
-
-    res.clearCookie("connect.sid");
-
-    res.json({
-      success: true
-    });
-  });
-});
-
-/* =========================
-   SAVE CONTROLS
-========================= */
-
-app.put("/api/controls", async (req, res) => {
-
-  try {
-
-    if (!req.session.playerId) {
-      return res.status(401).json({
-        error: "Not logged in."
-      });
-    }
-
-    const controls =
-      req.body.controls;
-
-    if (
-      !controls ||
-      typeof controls !== "object" ||
-      Array.isArray(controls)
-    ) {
-      return res.status(400).json({
-        error: "Invalid controls."
-      });
-    }
-
-    await pool.query(
-      `
-      UPDATE players
-      SET controls = $1
-      WHERE id = $2
-      `,
-      [
-        JSON.stringify(controls),
-        req.session.playerId
-      ]
-    );
-
-    res.json({
-      success: true
-    });
-
-  } catch (error) {
-
-    console.error(
-      "Control save error:",
-      error
-    );
-
-    res.status(500).json({
-      error:
-        "Could not save controls."
-    });
-  }
-});
-
-/* =========================
-   ACTIVE PLAYERS
-========================= */
-
-const players = new Map();
-
-/*
-  socket.id -> {
-    id,
-    accountId,
-    username,
-    x,
-    y,
-    z,
-    rotationY,
-    state
-  }
-*/
-
-/* =========================
-   SOCKET.IO
-========================= */
-
-io.on("connection", socket => {
-
-  console.log(
-    "Socket connected:",
-    socket.id
-  );
-
-  /* =========================
-     PLAYER JOIN
-  ========================== */
-
-  socket.on(
-    "player:join",
-    async () => {
-
-      try {
-
-        const session =
-          socket.request.session;
-
-        if (!session) {
-          return;
         }
+    );
 
-        if (!session.playerId) {
-          socket.emit(
-            "auth:error",
-            {
-              error:
-                "You must be logged in."
+
+    // ========================================================
+    // MOVEMENT
+    // ========================================================
+
+    socket.on(
+        "playerMove",
+        (data = {}) => {
+
+            const player =
+                players[
+                    socket.id
+                ];
+
+
+            if (!player) {
+                return;
             }
-          );
 
-          return;
-        }
 
-        const result =
-          await pool.query(
-            `
-            SELECT
-              id,
-              username
-            FROM players
-            WHERE id = $1
-            `,
-            [session.playerId]
-          );
+            if (
+                typeof data.x ===
+                "number"
+            ) {
 
-        if (result.rows.length === 0) {
+                player.x =
+                    data.x;
 
-          socket.emit(
-            "auth:error",
-            {
-              error:
-                "Account not found."
             }
-          );
 
-          return;
+
+            if (
+                typeof data.y ===
+                "number"
+            ) {
+
+                player.y =
+                    data.y;
+
+            }
+
+
+            if (
+                typeof data.z ===
+                "number"
+            ) {
+
+                player.z =
+                    data.z;
+
+            }
+
+
+            if (
+                typeof data.rotationY ===
+                "number"
+            ) {
+
+                player.rotationY =
+                    data.rotationY;
+
+            }
+
+
+            if (
+                typeof data.username ===
+                "string" &&
+                data.username.trim()
+            ) {
+
+                player.username =
+                    data.username
+                        .trim()
+                        .slice(
+                            0,
+                            20
+                        );
+
+            }
+
+
+            socket.broadcast.emit(
+                "playerMoved",
+                {
+                    id:
+                        player.id,
+
+                    username:
+                        player.username,
+
+                    x:
+                        player.x,
+
+                    y:
+                        player.y,
+
+                    z:
+                        player.z,
+
+                    rotationY:
+                        player.rotationY
+                }
+            );
+
         }
+    );
 
-        const databasePlayer =
-          result.rows[0];
 
-        const player = {
+    // ========================================================
+    // SHOOTING
+    // ========================================================
 
-          id:
-            socket.id,
+    socket.on(
+        "playerShoot",
+        (data = {}) => {
 
-          accountId:
-            databasePlayer.id,
+            const player =
+                players[
+                    socket.id
+                ];
 
-          username:
-            databasePlayer.username,
 
-          x: 0,
+            if (!player) {
+                return;
+            }
 
-          y: 1,
 
-          z: 10,
+            // Tell other clients that
+            // this player fired.
 
-          rotationY: 0,
+            socket.broadcast.emit(
+                "playerShot",
+                {
+                    id:
+                        player.id,
 
-          state: "normal"
-        };
+                    username:
+                        player.username,
 
-        players.set(
-          socket.id,
-          player
-        );
+                    weapon:
+                        data.weapon ||
+                        "ak",
 
-        const existingPlayers =
-          Array.from(
-            players.values()
-          ).filter(
-            p =>
-              p.id !== socket.id
-          );
+                    yaw:
+                        Number(data.yaw) || 0,
 
-        socket.emit(
-          "players:list",
-          {
-            players:
-              existingPlayers
-          }
-        );
+                    pitch:
+                        Number(data.pitch) || 0
+                }
+            );
 
-        socket.broadcast.emit(
-          "player:joined",
-          player
-        );
-
-        updatePlayerCount();
-
-        console.log(
-          `${player.username} joined the game.`
-        );
-
-      } catch (error) {
-
-        console.error(
-          "Player join error:",
-          error
-        );
-      }
-    }
-  );
-
-  /* =========================
-     MOVEMENT
-  ========================== */
-
-  socket.on(
-    "player:update",
-    data => {
-
-      const player =
-        players.get(socket.id);
-
-      if (!player) {
-        return;
-      }
-
-      if (
-        !data ||
-        typeof data.x !== "number" ||
-        typeof data.y !== "number" ||
-        typeof data.z !== "number"
-      ) {
-        return;
-      }
-
-      const maxCoordinate = 1000;
-
-      player.x =
-        Math.max(
-          -maxCoordinate,
-          Math.min(
-            maxCoordinate,
-            data.x
-          )
-        );
-
-      player.y =
-        Math.max(
-          0,
-          Math.min(
-            100,
-            data.y
-          )
-        );
-
-      player.z =
-        Math.max(
-          -maxCoordinate,
-          Math.min(
-            maxCoordinate,
-            data.z
-          )
-        );
-
-      if (
-        typeof data.rotationY ===
-        "number"
-      ) {
-        player.rotationY =
-          data.rotationY;
-      }
-
-      if (
-        typeof data.state ===
-        "string"
-      ) {
-
-        const allowedStates = [
-          "normal",
-          "sprinting",
-          "sliding",
-          "sneaking"
-        ];
-
-        if (
-          allowedStates.includes(
-            data.state
-          )
-        ) {
-          player.state =
-            data.state;
         }
-      }
+    );
 
-      socket.broadcast.emit(
-        "player:update",
-        player
-      );
-    }
-  );
 
-  /* =========================
-     CHAT
-  ========================== */
+    // ========================================================
+    // DAMAGE
+    // ========================================================
 
-  socket.on(
-    "chat:send",
-    message => {
+    socket.on(
+        "playerDamage",
+        (data = {}) => {
 
-      const player =
-        players.get(socket.id);
+            const attacker =
+                players[
+                    socket.id
+                ];
 
-      if (!player) {
-        return;
-      }
 
-      if (
-        typeof message !== "string"
-      ) {
-        return;
-      }
+            if (!attacker) {
+                return;
+            }
 
-      message =
-        message
-          .replace(/\s+/g, " ")
-          .trim();
 
-      if (!message) {
-        return;
-      }
+            const targetId =
+                data.targetId;
 
-      message =
-        message.substring(
-          0,
-          200
-        );
 
-      io.emit(
-        "chat:message",
-        {
-          username:
-            player.username,
+            const target =
+                players[
+                    targetId
+                ];
 
-          message
+
+            if (!target) {
+                return;
+            }
+
+
+            // Prevent invalid damage
+
+            let damage =
+                Number(data.damage);
+
+
+            if (
+                !Number.isFinite(
+                    damage
+                )
+            ) {
+
+                return;
+
+            }
+
+
+            damage =
+                Math.max(
+                    0,
+                    Math.min(
+                        damage,
+                        100
+                    )
+                );
+
+
+            // Apply damage
+
+            target.health -=
+                damage;
+
+
+            target.health =
+                Math.max(
+                    0,
+                    target.health
+                );
+
+
+            // Tell target they
+            // took damage
+
+            io.to(
+                target.id
+            ).emit(
+                "damageTaken",
+                {
+                    damage,
+                    attackerId:
+                        attacker.id,
+
+                    weapon:
+                        data.weapon ||
+                        "ak",
+
+                    headshot:
+                        Boolean(
+                            data.headshot
+                        )
+                }
+            );
+
+
+            console.log(
+                `${attacker.username} hit ${target.username} for ${damage}`
+            );
+
+
+            // ==================================================
+            // DEATH
+            // ==================================================
+
+            if (
+                target.health <=
+                0
+            ) {
+
+                target.deaths++;
+
+                target.streak = 0;
+
+
+                attacker.kills++;
+
+                attacker.streak++;
+
+
+                // Tell attacker
+                // about their kill
+
+                io.to(
+                    attacker.id
+                ).emit(
+                    "killConfirmed",
+                    {
+                        targetId:
+                            target.id,
+
+                        username:
+                            target.username,
+
+                        headshot:
+                            Boolean(
+                                data.headshot
+                            )
+                    }
+                );
+
+
+                // Tell everyone that
+                // player died
+
+                io.emit(
+                    "playerDied",
+                    {
+                        playerId:
+                            target.id,
+
+                        username:
+                            target.username,
+
+                        killerId:
+                            attacker.id,
+
+                        killerName:
+                            attacker.username
+                    }
+                );
+
+
+                // Respawn server data
+
+                setTimeout(
+                    () => {
+
+                        if (
+                            !players[
+                                target.id
+                            ]
+                        ) {
+
+                            return;
+
+                        }
+
+
+                        target.health =
+                            100;
+
+
+                        target.x =
+                            0;
+
+                        target.y =
+                            1.7;
+
+                        target.z =
+                            5;
+
+
+                        // Tell the player
+                        // to respawn
+
+                        io.to(
+                            target.id
+                        ).emit(
+                            "respawn",
+                            {
+                                x: 0,
+                                y: 1.7,
+                                z: 5,
+                                health: 100
+                            }
+                        );
+
+
+                        // Tell everyone the
+                        // new position
+
+                        io.emit(
+                            "playerMoved",
+                            {
+                                id:
+                                    target.id,
+
+                                username:
+                                    target.username,
+
+                                x:
+                                    target.x,
+
+                                y:
+                                    target.y,
+
+                                z:
+                                    target.z,
+
+                                rotationY:
+                                    target.rotationY
+                            }
+                        );
+
+                    },
+                    2500
+                );
+
+            }
+
         }
-      );
-    }
-  );
+    );
 
-  /* =========================
-     DISCONNECT
-  ========================== */
 
-  socket.on(
-    "disconnect",
+    // ========================================================
+    // DISCONNECT
+    // ========================================================
+
+    socket.on(
+        "disconnect",
+        () => {
+
+            const player =
+                players[
+                    socket.id
+                ];
+
+
+            if (player) {
+
+                console.log(
+                    `${player.username} left NovaStrike`
+                );
+
+            } else {
+
+                console.log(
+                    "Player disconnected:",
+                    socket.id
+                );
+
+            }
+
+
+            delete players[
+                socket.id
+            ];
+
+
+            io.emit(
+                "playerLeft",
+                socket.id
+            );
+
+        }
+    );
+
+});
+
+
+// ============================================================
+// SERVER
+// ============================================================
+
+server.listen(
+    PORT,
     () => {
 
-      const player =
-        players.get(socket.id);
-
-      if (player) {
-
         console.log(
-          `${player.username} left the game.`
+            `NovaStrike server running on port ${PORT}`
         );
 
-        players.delete(
-          socket.id
-        );
-
-        socket.broadcast.emit(
-          "player:left",
-          socket.id
-        );
-
-        updatePlayerCount();
-      }
-
-      console.log(
-        "Socket disconnected:",
-        socket.id
-      );
     }
-  );
-});
-
-/* =========================
-   PLAYER COUNT
-========================= */
-
-function updatePlayerCount() {
-
-  io.emit(
-    "players:count",
-    players.size
-  );
-}
-
-/* =========================
-   FALLBACK ROUTE
-========================= */
-
-/*
-  Express 5 does not accept:
-      app.get("*", ...)
-  
-  So use a normal middleware
-  for the frontend fallback.
-*/
-
-app.use((req, res) => {
-
-  res.sendFile(
-    path.join(
-      __dirname,
-      "public",
-      "index.html"
-    )
-  );
-});
-
-/* =========================
-   START SERVER
-========================= */
-
-async function start() {
-
-  try {
-
-    await setupDatabase();
-
-    server.listen(
-      PORT,
-      "0.0.0.0",
-      () => {
-
-        console.log(
-          `NovaStrike running on port ${PORT}`
-        );
-
-      }
-    );
-
-  } catch (error) {
-
-    console.error(
-      "Failed to start:",
-      error
-    );
-
-    process.exit(1);
-  }
-}
-
-start();
+);
