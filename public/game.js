@@ -1,5 +1,5 @@
 // NovaStrike 3D Client
-// Original multiplayer arena client
+// Optimized multiplayer arena client
 
 const socket = io({
   withCredentials: true
@@ -14,11 +14,9 @@ let camera;
 let renderer;
 let clock;
 
-let localPlayer = null;
 let gameStarted = false;
 
 const remotePlayers = new Map();
-
 const keys = {};
 
 const controls = {
@@ -43,8 +41,6 @@ const player = {
   sprintSpeed: 12,
   sneakSpeed: 3,
 
-  height: 2,
-
   yaw: 0,
   pitch: 0,
 
@@ -53,49 +49,63 @@ const player = {
   sneaking: false
 };
 
-/* =========================================
+/* =========================
    LOAD THREE.JS
-========================================= */
+========================= */
 
 async function loadThree() {
+  try {
+    THREE = await import(THREE_URL);
+    startGame();
+  } catch (error) {
+    console.error("Failed to load Three.js:", error);
 
-  THREE =
-    await import(THREE_URL);
-
-  startGame();
+    document.body.innerHTML = `
+      <div style="
+        color:white;
+        background:#101522;
+        height:100vh;
+        display:flex;
+        align-items:center;
+        justify-content:center;
+        font-family:Arial;
+        text-align:center;
+      ">
+        <div>
+          <h1>NovaStrike</h1>
+          <p>Could not load the game engine.</p>
+          <p>Check your internet connection and refresh.</p>
+        </div>
+      </div>
+    `;
+  }
 }
 
-/* =========================================
+/* =========================
    START GAME
-========================================= */
+========================= */
 
 function startGame() {
-
   if (gameStarted) return;
 
   gameStarted = true;
 
-  scene =
-    new THREE.Scene();
+  scene = new THREE.Scene();
 
-  scene.background =
-    new THREE.Color(0x101522);
+  scene.background = new THREE.Color(0x101522);
 
-  scene.fog =
-    new THREE.Fog(
-      0x101522,
-      60,
-      350
-    );
+  scene.fog = new THREE.Fog(
+    0x101522,
+    80,
+    500
+  );
 
-  camera =
-    new THREE.PerspectiveCamera(
-      75,
-      window.innerWidth /
-        window.innerHeight,
-      0.1,
-      1000
-    );
+  camera = new THREE.PerspectiveCamera(
+    75,
+    window.innerWidth / window.innerHeight,
+    0.1,
+    1000
+  );
 
   camera.position.set(
     player.x,
@@ -103,16 +113,13 @@ function startGame() {
     player.z
   );
 
-  renderer =
-    new THREE.WebGLRenderer({
-      antialias: true
-    });
+  renderer = new THREE.WebGLRenderer({
+    antialias: true,
+    powerPreference: "high-performance"
+  });
 
   renderer.setPixelRatio(
-    Math.min(
-      window.devicePixelRatio,
-      2
-    )
+    Math.min(window.devicePixelRatio || 1, 1.5)
   );
 
   renderer.setSize(
@@ -120,21 +127,29 @@ function startGame() {
     window.innerHeight
   );
 
+  renderer.outputColorSpace =
+    THREE.SRGBColorSpace;
+
   renderer.shadowMap.enabled = true;
+  renderer.shadowMap.type =
+    THREE.PCFSoftShadowMap;
+
+  renderer.domElement.style.position = "fixed";
+  renderer.domElement.style.left = "0";
+  renderer.domElement.style.top = "0";
+  renderer.domElement.style.width = "100%";
+  renderer.domElement.style.height = "100%";
+  renderer.domElement.style.zIndex = "0";
 
   document.body.appendChild(
     renderer.domElement
   );
 
-  clock =
-    new THREE.Clock();
+  clock = new THREE.Clock();
 
   createWorld();
-
   createHUD();
-
   setupInput();
-
   connectPlayer();
 
   window.addEventListener(
@@ -145,37 +160,30 @@ function startGame() {
   animate();
 }
 
-/* =========================================
+/* =========================
    WORLD
-========================================= */
+========================= */
 
 function createWorld() {
-
-  /* Sky */
-
-  const sky =
-    new THREE.Mesh(
-      new THREE.SphereGeometry(
-        500,
-        32,
-        32
-      ),
-      new THREE.MeshBasicMaterial({
-        color: 0x172033,
-        side:
-          THREE.BackSide
-      })
-    );
+  const sky = new THREE.Mesh(
+    new THREE.SphereGeometry(
+      500,
+      24,
+      16
+    ),
+    new THREE.MeshBasicMaterial({
+      color: 0x172033,
+      side: THREE.BackSide
+    })
+  );
 
   scene.add(sky);
-
-  /* Lighting */
 
   const ambient =
     new THREE.HemisphereLight(
       0xbfd7ff,
       0x18202b,
-      2
+      1.8
     );
 
   scene.add(ambient);
@@ -187,29 +195,29 @@ function createWorld() {
     );
 
   sun.position.set(
-    80,
-    120,
-    40
+    100,
+    150,
+    80
   );
 
   sun.castShadow = true;
 
-  sun.shadow.mapSize.width =
-    2048;
+  sun.shadow.mapSize.width = 1024;
+  sun.shadow.mapSize.height = 1024;
 
-  sun.shadow.mapSize.height =
-    2048;
+  sun.shadow.camera.left = -250;
+  sun.shadow.camera.right = 250;
+  sun.shadow.camera.top = 250;
+  sun.shadow.camera.bottom = -250;
 
   scene.add(sun);
-
-  /* Ground */
 
   const ground =
     new THREE.Mesh(
       new THREE.BoxGeometry(
-        300,
+        400,
         2,
-        300
+        400
       ),
       new THREE.MeshStandardMaterial({
         color: 0x303846,
@@ -218,135 +226,161 @@ function createWorld() {
     );
 
   ground.position.y = -1;
-
   ground.receiveShadow = true;
 
   scene.add(ground);
 
-  /* Grid */
-
   const grid =
     new THREE.GridHelper(
-      300,
-      60,
+      400,
+      80,
       0x566070,
       0x343c4b
     );
 
-  grid.position.y =
-    0.01;
+  grid.position.y = 0.01;
 
   scene.add(grid);
 
-  /* Large map structures */
+  createBuilding(
+    -70,
+    10,
+    -65,
+    55,
+    20,
+    35
+  );
 
   createBuilding(
-    -45,
+    75,
+    12,
+    -60,
+    45,
+    24,
+    45
+  );
+
+  createBuilding(
+    -75,
     8,
-    -35,
+    70,
     45,
     16,
-    30
+    45
   );
 
   createBuilding(
-    50,
-    10,
-    -30,
-    35,
-    20,
-    40
-  );
-
-  createBuilding(
-    -55,
+    70,
     7,
-    45,
-    35,
+    70,
+    55,
     14,
     35
   );
 
   createBuilding(
-    45,
-    6,
-    45,
-    40,
-    12,
+    0,
+    18,
+    0,
+    30,
+    36,
     30
   );
 
-  /* Central tower */
-
-  createBuilding(
-    0,
-    15,
-    0,
-    24,
-    30,
-    24
+  createPlatform(
+    -35,
+    6,
+    -10,
+    35,
+    2,
+    18
   );
 
-  /* Platforms */
-
   createPlatform(
-    -20,
+    40,
     5,
-    0,
-    25,
+    20,
+    35,
     2,
-    15
+    18
   );
 
   createPlatform(
-    25,
-    4,
-    15,
-    30,
+    -10,
+    8,
+    -70,
+    40,
     2,
-    12
+    18
   );
 
   createPlatform(
-    0,
-    7,
-    -55,
-    30,
+    10,
+    6,
+    75,
+    35,
     2,
-    14
+    18
   );
 
-  /* Cover blocks */
-
-  for (
-    let i = 0;
-    i < 25;
-    i++
-  ) {
-
+  for (let i = 0; i < 45; i++) {
     const x =
-      Math.random() * 180 - 90;
+      Math.random() * 340 - 170;
 
     const z =
-      Math.random() * 180 - 90;
+      Math.random() * 340 - 170;
 
     if (
-      Math.abs(x) < 15 &&
-      Math.abs(z) < 15
+      Math.abs(x) < 25 &&
+      Math.abs(z) < 25
     ) {
       continue;
     }
 
-    createCover(
-      x,
-      z
-    );
+    createCover(x, z);
   }
+
+  createWall(0, 3, -195, 400, 6, 5);
+  createWall(0, 3, 195, 400, 6, 5);
+  createWall(-195, 3, 0, 5, 6, 400);
+  createWall(195, 3, 0, 5, 6, 400);
 }
 
-/* =========================================
-   BUILDINGS
-========================================= */
+/* =========================
+   WALL
+========================= */
+
+function createWall(
+  x,
+  y,
+  z,
+  width,
+  height,
+  depth
+) {
+  const wall =
+    new THREE.Mesh(
+      new THREE.BoxGeometry(
+        width,
+        height,
+        depth
+      ),
+      new THREE.MeshStandardMaterial({
+        color: 0x202633
+      })
+    );
+
+  wall.position.set(x, y, z);
+
+  wall.castShadow = true;
+  wall.receiveShadow = true;
+
+  scene.add(wall);
+}
+
+/* =========================
+   BUILDING
+========================= */
 
 function createBuilding(
   x,
@@ -356,13 +390,6 @@ function createBuilding(
   height,
   depth
 ) {
-
-  const material =
-    new THREE.MeshStandardMaterial({
-      color: 0x596273,
-      roughness: 0.75
-    });
-
   const building =
     new THREE.Mesh(
       new THREE.BoxGeometry(
@@ -370,7 +397,10 @@ function createBuilding(
         height,
         depth
       ),
-      material
+      new THREE.MeshStandardMaterial({
+        color: 0x596273,
+        roughness: 0.75
+      })
     );
 
   building.position.set(
@@ -383,8 +413,6 @@ function createBuilding(
   building.receiveShadow = true;
 
   scene.add(building);
-
-  /* Roof */
 
   const roof =
     new THREE.Mesh(
@@ -409,9 +437,9 @@ function createBuilding(
   scene.add(roof);
 }
 
-/* =========================================
+/* =========================
    PLATFORM
-========================================= */
+========================= */
 
 function createPlatform(
   x,
@@ -421,7 +449,6 @@ function createPlatform(
   height,
   depth
 ) {
-
   const platform =
     new THREE.Mesh(
       new THREE.BoxGeometry(
@@ -446,26 +473,19 @@ function createPlatform(
   scene.add(platform);
 }
 
-/* =========================================
+/* =========================
    COVER
-========================================= */
+========================= */
 
-function createCover(
-  x,
-  z
-) {
-
+function createCover(x, z) {
   const width =
-    3 +
-    Math.random() * 4;
+    3 + Math.random() * 5;
 
   const height =
-    2 +
-    Math.random() * 3;
+    2 + Math.random() * 4;
 
   const depth =
-    3 +
-    Math.random() * 4;
+    3 + Math.random() * 5;
 
   const cover =
     new THREE.Mesh(
@@ -491,23 +511,19 @@ function createCover(
   scene.add(cover);
 }
 
-/* =========================================
+/* =========================
    INPUT
-========================================= */
+========================= */
 
 function setupInput() {
-
   window.addEventListener(
     "keydown",
     event => {
-
       keys[event.code] = true;
 
       if (
-        event.code ===
-        "Space"
+        event.code === "Space"
       ) {
-
         jump();
       }
     }
@@ -516,7 +532,6 @@ function setupInput() {
   window.addEventListener(
     "keyup",
     event => {
-
       keys[event.code] = false;
     }
   );
@@ -524,7 +539,6 @@ function setupInput() {
   window.addEventListener(
     "mousemove",
     event => {
-
       if (
         document.pointerLockElement !==
         renderer.domElement
@@ -533,12 +547,10 @@ function setupInput() {
       }
 
       player.yaw -=
-        event.movementX *
-        0.002;
+        event.movementX * 0.002;
 
       player.pitch -=
-        event.movementY *
-        0.002;
+        event.movementY * 0.002;
 
       player.pitch =
         Math.max(
@@ -554,36 +566,35 @@ function setupInput() {
   renderer.domElement.addEventListener(
     "click",
     () => {
-
-      renderer.domElement.requestPointerLock();
+      if (
+        document.pointerLockElement !==
+        renderer.domElement
+      ) {
+        renderer.domElement.requestPointerLock();
+      }
     }
   );
 }
 
-/* =========================================
+/* =========================
    MOVEMENT
-========================================= */
+========================= */
 
 function updateMovement(delta) {
-
   let moveX = 0;
   let moveZ = 0;
 
-  if (keys[controls.forward]) {
+  if (keys[controls.forward])
     moveZ -= 1;
-  }
 
-  if (keys[controls.backward]) {
+  if (keys[controls.backward])
     moveZ += 1;
-  }
 
-  if (keys[controls.left]) {
+  if (keys[controls.left])
     moveX -= 1;
-  }
 
-  if (keys[controls.right]) {
+  if (keys[controls.right])
     moveX += 1;
-  }
 
   const moving =
     moveX !== 0 ||
@@ -604,7 +615,6 @@ function updateMovement(delta) {
     !player.sliding &&
     player.grounded
   ) {
-
     player.sliding = true;
 
     setTimeout(() => {
@@ -612,26 +622,18 @@ function updateMovement(delta) {
     }, 500);
   }
 
-  let speed =
-    player.speed;
+  let speed = player.speed;
 
-  if (sprinting) {
-    speed =
-      player.sprintSpeed;
-  }
+  if (sprinting)
+    speed = player.sprintSpeed;
 
-  if (player.sneaking) {
-    speed =
-      player.sneakSpeed;
-  }
+  if (player.sneaking)
+    speed = player.sneakSpeed;
 
-  if (player.sliding) {
-    speed =
-      player.sprintSpeed * 1.35;
-  }
+  if (player.sliding)
+    speed = player.sprintSpeed * 1.35;
 
   if (moving) {
-
     const length =
       Math.sqrt(
         moveX * moveX +
@@ -656,54 +658,40 @@ function updateMovement(delta) {
       moveZ * cos;
 
     player.x +=
-      worldX *
-      speed *
-      delta;
+      worldX * speed * delta;
 
     player.z +=
-      worldZ *
-      speed *
-      delta;
+      worldZ * speed * delta;
   }
-
-  /* Gravity */
 
   player.velocityY -=
     24 * delta;
 
   player.y +=
-    player.velocityY *
-    delta;
+    player.velocityY * delta;
 
   if (player.y <= 2) {
-
     player.y = 2;
-
     player.velocityY = 0;
-
     player.grounded = true;
-
   } else {
-
     player.grounded = false;
   }
 
-  /* Keep player inside map */
-
   player.x =
     Math.max(
-      -145,
+      -190,
       Math.min(
-        145,
+        190,
         player.x
       )
     );
 
   player.z =
     Math.max(
-      -145,
+      -190,
       Math.min(
-        145,
+        190,
         player.z
       )
     );
@@ -724,10 +712,7 @@ function updateMovement(delta) {
   camera.rotation.x =
     player.pitch;
 
-  /* Send movement */
-
   if (socket.connected) {
-
     socket.emit(
       "player:update",
       {
@@ -749,33 +734,26 @@ function updateMovement(delta) {
   }
 }
 
-/* =========================================
+/* =========================
    JUMP
-========================================= */
+========================= */
 
 function jump() {
-
-  if (!player.grounded) {
+  if (!player.grounded)
     return;
-  }
 
-  player.velocityY =
-    9;
-
-  player.grounded =
-    false;
+  player.velocityY = 9;
+  player.grounded = false;
 }
 
-/* =========================================
+/* =========================
    MULTIPLAYER
-========================================= */
+========================= */
 
 function connectPlayer() {
-
   socket.on(
     "connect",
     () => {
-
       socket.emit(
         "player:join"
       );
@@ -785,11 +763,16 @@ function connectPlayer() {
   socket.on(
     "players:list",
     data => {
+      if (
+        !data ||
+        !Array.isArray(data.players)
+      ) {
+        return;
+      }
 
       for (
         const p of data.players
       ) {
-
         createRemotePlayer(p);
       }
     }
@@ -798,7 +781,6 @@ function connectPlayer() {
   socket.on(
     "player:joined",
     p => {
-
       createRemotePlayer(p);
 
       addChatMessage(
@@ -811,7 +793,6 @@ function connectPlayer() {
   socket.on(
     "player:update",
     p => {
-
       updateRemotePlayer(p);
     }
   );
@@ -819,7 +800,6 @@ function connectPlayer() {
   socket.on(
     "player:left",
     id => {
-
       removeRemotePlayer(id);
     }
   );
@@ -827,7 +807,6 @@ function connectPlayer() {
   socket.on(
     "players:count",
     count => {
-
       const element =
         document.getElementById(
           "player-count"
@@ -843,32 +822,19 @@ function connectPlayer() {
   socket.on(
     "chat:message",
     data => {
-
       addChatMessage(
         data.username,
         data.message
       );
     }
   );
-
-  socket.on(
-    "auth:error",
-    data => {
-
-      addChatMessage(
-        "SYSTEM",
-        data.error
-      );
-    }
-  );
 }
 
-/* =========================================
+/* =========================
    REMOTE PLAYER
-========================================= */
+========================= */
 
 function createRemotePlayer(p) {
-
   if (
     remotePlayers.has(p.id)
   ) {
@@ -877,8 +843,6 @@ function createRemotePlayer(p) {
 
   const group =
     new THREE.Group();
-
-  /* Body */
 
   const body =
     new THREE.Mesh(
@@ -892,14 +856,10 @@ function createRemotePlayer(p) {
       })
     );
 
-  body.position.y =
-    0.75;
-
+  body.position.y = 0.75;
   body.castShadow = true;
 
   group.add(body);
-
-  /* Head */
 
   const head =
     new THREE.Mesh(
@@ -913,22 +873,17 @@ function createRemotePlayer(p) {
       })
     );
 
-  head.position.y =
-    1.8;
-
+  head.position.y = 1.8;
   head.castShadow = true;
 
   group.add(head);
-
-  /* Name */
 
   const name =
     createNameLabel(
       p.username
     );
 
-  name.position.y =
-    2.5;
+  name.position.y = 2.5;
 
   group.add(name);
 
@@ -947,19 +902,17 @@ function createRemotePlayer(p) {
       targetX: p.x,
       targetY: p.y - 2,
       targetZ: p.z,
-      targetRotation: p.rotationY || 0
+      targetRotation:
+        p.rotationY || 0
     }
   );
 }
 
-/* =========================================
+/* =========================
    NAME LABEL
-========================================= */
+========================= */
 
-function createNameLabel(
-  text
-) {
-
+function createNameLabel(text) {
   const canvas =
     document.createElement(
       "canvas"
@@ -969,16 +922,7 @@ function createNameLabel(
   canvas.height = 128;
 
   const context =
-    canvas.getContext(
-      "2d"
-    );
-
-  context.clearRect(
-    0,
-    0,
-    canvas.width,
-    canvas.height
-  );
+    canvas.getContext("2d");
 
   context.font =
     "bold 42px Arial";
@@ -992,8 +936,7 @@ function createNameLabel(
   context.strokeStyle =
     "#000000";
 
-  context.lineWidth =
-    8;
+  context.lineWidth = 8;
 
   context.strokeText(
     text,
@@ -1032,103 +975,101 @@ function createNameLabel(
   return sprite;
 }
 
-/* =========================================
+/* =========================
    UPDATE REMOTE PLAYER
-========================================= */
+========================= */
 
 function updateRemotePlayer(p) {
-
   const remote =
     remotePlayers.get(p.id);
 
   if (!remote) {
-
     createRemotePlayer(p);
-
     return;
   }
 
-  remote.targetX =
-    p.x;
-
-  remote.targetY =
-    p.y - 2;
-
-  remote.targetZ =
-    p.z;
-
+  remote.targetX = p.x;
+  remote.targetY = p.y - 2;
+  remote.targetZ = p.z;
   remote.targetRotation =
     p.rotationY || 0;
 }
 
-/* =========================================
+/* =========================
    REMOVE REMOTE PLAYER
-========================================= */
+========================= */
 
 function removeRemotePlayer(id) {
-
   const remote =
     remotePlayers.get(id);
 
-  if (!remote) {
+  if (!remote)
     return;
-  }
 
   scene.remove(
     remote.object
   );
 
-  remotePlayers.delete(
-    id
-  );
+  remotePlayers.delete(id);
 }
 
-/* =========================================
-   INTERPOLATE PLAYERS
-========================================= */
+/* =========================
+   INTERPOLATION
+========================= */
 
 function updateRemotePlayers() {
-
   for (
     const remote of
     remotePlayers.values()
   ) {
+    const object =
+      remote.object;
 
-    remote.object.position.x +=
+    object.position.x +=
       (
         remote.targetX -
-        remote.object.position.x
-      ) *
-      0.25;
+        object.position.x
+      ) * 0.25;
 
-    remote.object.position.y +=
+    object.position.y +=
       (
         remote.targetY -
-        remote.object.position.y
-      ) *
-      0.25;
+        object.position.y
+      ) * 0.25;
 
-    remote.object.position.z +=
+    object.position.z +=
       (
         remote.targetZ -
-        remote.object.position.z
-      ) *
-      0.25;
+        object.position.z
+      ) * 0.25;
 
-    remote.object.rotation.y +=
-      (
-        remote.targetRotation -
-        remote.object.rotation.y
-      ) *
-      0.25;
+    let rotationDifference =
+      remote.targetRotation -
+      object.rotation.y;
+
+    rotationDifference =
+      Math.atan2(
+        Math.sin(rotationDifference),
+        Math.cos(rotationDifference)
+      );
+
+    object.rotation.y +=
+      rotationDifference * 0.25;
   }
 }
 
-/* =========================================
+/* =========================
    HUD
-========================================= */
+========================= */
 
 function createHUD() {
+  if (
+    document.getElementById(
+      "nova-hud"
+    )
+  ) {
+    return;
+  }
 
   const hud =
     document.createElement(
@@ -1139,17 +1080,13 @@ function createHUD() {
     "nova-hud";
 
   hud.innerHTML = `
-
-    <div id="crosshair">
-      +
-    </div>
+    <div id="crosshair">+</div>
 
     <div id="player-count">
       PLAYERS 0
     </div>
 
     <div id="chat-box">
-
       <div id="chat-messages"></div>
 
       <input
@@ -1157,18 +1094,15 @@ function createHUD() {
         maxlength="200"
         placeholder="Press Enter to chat..."
       />
-
     </div>
 
     <div id="controls-help">
-
       W A S D — MOVE<br>
       R — SPRINT<br>
       SHIFT — SLIDE<br>
       C — SNEAK<br>
       SPACE — JUMP<br>
       ESC — SETTINGS
-
     </div>
   `;
 
@@ -1184,10 +1118,8 @@ function createHUD() {
   chatInput.addEventListener(
     "keydown",
     event => {
-
       if (
-        event.key !==
-        "Enter"
+        event.key !== "Enter"
       ) {
         return;
       }
@@ -1195,9 +1127,8 @@ function createHUD() {
       const message =
         chatInput.value.trim();
 
-      if (!message) {
+      if (!message)
         return;
-      }
 
       socket.emit(
         "chat:send",
@@ -1209,23 +1140,21 @@ function createHUD() {
   );
 }
 
-/* =========================================
+/* =========================
    CHAT
-========================================= */
+========================= */
 
 function addChatMessage(
   username,
   message
 ) {
-
   const container =
     document.getElementById(
       "chat-messages"
     );
 
-  if (!container) {
+  if (!container)
     return;
-  }
 
   const line =
     document.createElement(
@@ -1235,22 +1164,28 @@ function addChatMessage(
   line.className =
     "chat-line";
 
-  line.innerHTML =
-    `<strong>${escapeHTML(
-      username
-    )}:</strong> ${escapeHTML(
-      message
-    )}`;
+  const name =
+    document.createElement(
+      "strong"
+    );
 
-  container.appendChild(
-    line
-  );
+  name.textContent =
+    `${username}: `;
+
+  const text =
+    document.createTextNode(
+      message
+    );
+
+  line.appendChild(name);
+  line.appendChild(text);
+
+  container.appendChild(line);
 
   while (
     container.children.length >
     8
   ) {
-
     container.removeChild(
       container.firstChild
     );
@@ -1260,38 +1195,13 @@ function addChatMessage(
     container.scrollHeight;
 }
 
-function escapeHTML(
-  text
-) {
-
-  return String(text)
-    .replaceAll(
-      "&",
-      "&amp;"
-    )
-    .replaceAll(
-      "<",
-      "&lt;"
-    )
-    .replaceAll(
-      ">",
-      "&gt;"
-    )
-    .replaceAll(
-      '"',
-      "&quot;"
-    )
-    .replaceAll(
-      "'",
-      "&#039;"
-    );
-}
-
-/* =========================================
+/* =========================
    RESIZE
-========================================= */
+========================= */
 
 function resize() {
+  if (!camera || !renderer)
+    return;
 
   camera.aspect =
     window.innerWidth /
@@ -1305,12 +1215,11 @@ function resize() {
   );
 }
 
-/* =========================================
+/* =========================
    GAME LOOP
-========================================= */
+========================= */
 
 function animate() {
-
   requestAnimationFrame(
     animate
   );
@@ -1321,10 +1230,7 @@ function animate() {
       0.05
     );
 
-  updateMovement(
-    delta
-  );
-
+  updateMovement(delta);
   updateRemotePlayers();
 
   renderer.render(
@@ -1333,8 +1239,8 @@ function animate() {
   );
 }
 
-/* =========================================
+/* =========================
    START
-========================================= */
+========================= */
 
 loadThree();
