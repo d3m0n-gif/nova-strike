@@ -1,437 +1,438 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8">
+    <meta charset="UTF-8">
 
-  <meta
-    name="viewport"
-    content="width=device-width, initial-scale=1.0"
-  >
+    <meta
+        name="viewport"
+        content="width=device-width, initial-scale=1.0"
+    >
 
-  <title>NovaStrike</title>
+    <title>NovaStrike</title>
 
-  <link rel="stylesheet" href="/style.css">
+    <link rel="stylesheet" href="/style.css">
 </head>
 
 <body>
 
-  <!-- =========================
-       LOGIN SCREEN
-  ========================== -->
+    <!-- LOGIN -->
 
-  <div id="auth-screen">
+    <div id="auth-screen">
 
-    <div class="auth-box">
+        <div class="auth-box">
 
-      <h1>NOVASTRIKE</h1>
+            <h1>NOVASTRIKE</h1>
 
-      <p class="subtitle">
-        Multiplayer Arena
-      </p>
+            <p class="subtitle">
+                Multiplayer Arena
+            </p>
 
-      <div id="login-form">
+            <div id="login-form">
 
-        <input
-          id="login-email"
-          type="email"
-          placeholder="Email"
-          autocomplete="email"
-        >
+                <input
+                    id="login-email"
+                    type="email"
+                    placeholder="Email"
+                >
 
-        <input
-          id="login-password"
-          type="password"
-          placeholder="Password"
-          autocomplete="current-password"
-        >
+                <input
+                    id="login-password"
+                    type="password"
+                    placeholder="Password"
+                >
 
-        <button id="login-button">
-          LOGIN
-        </button>
+                <button id="login-button">
+                    LOGIN
+                </button>
 
-        <p id="login-error"></p>
+                <p id="login-error"></p>
 
-        <button
-          id="show-register"
-          class="secondary-button"
-        >
-          CREATE ACCOUNT
-        </button>
+                <button
+                    id="show-register"
+                    class="secondary-button"
+                >
+                    CREATE ACCOUNT
+                </button>
 
-      </div>
+            </div>
 
 
-      <!-- REGISTER -->
+            <!-- REGISTER -->
 
-      <div
-        id="register-form"
-        style="display:none;"
-      >
+            <div
+                id="register-form"
+                style="display:none;"
+            >
 
-        <input
-          id="register-username"
-          type="text"
-          maxlength="20"
-          placeholder="Username"
-        >
+                <input
+                    id="register-username"
+                    type="text"
+                    maxlength="20"
+                    placeholder="Username"
+                >
 
-        <input
-          id="register-email"
-          type="email"
-          placeholder="Email"
-          autocomplete="email"
-        >
+                <input
+                    id="register-email"
+                    type="email"
+                    placeholder="Email"
+                >
 
-        <input
-          id="register-password"
-          type="password"
-          placeholder="Password"
-          autocomplete="new-password"
-        >
+                <input
+                    id="register-password"
+                    type="password"
+                    placeholder="Password"
+                >
 
-        <button id="register-button">
-          CREATE ACCOUNT
-        </button>
+                <button id="register-button">
+                    CREATE ACCOUNT
+                </button>
 
-        <p id="register-error"></p>
+                <p id="register-error"></p>
 
-        <button
-          id="show-login"
-          class="secondary-button"
-        >
-          BACK TO LOGIN
-        </button>
+                <button
+                    id="show-login"
+                    class="secondary-button"
+                >
+                    BACK TO LOGIN
+                </button>
 
-      </div>
+            </div>
+
+        </div>
 
     </div>
 
-  </div>
 
+    <!-- GAME -->
 
-  <!-- =========================
-       GAME
-  ========================== -->
+    <div id="game-screen"></div>
 
-  <div id="game-screen"></div>
 
+    <!-- SOCKET.IO -->
 
-  <!-- =========================
-       SETTINGS
-  ========================== -->
+    <script src="/socket.io/socket.io.js"></script>
 
-  <div
-    id="settings-screen"
-    style="display:none;"
-  >
 
-    <div class="settings-box">
+    <!-- GAME -->
 
-      <h2>SETTINGS</h2>
+    <script
+        type="module"
+        src="/game.js"
+    ></script>
 
-      <p>Controls</p>
 
-      <div class="control-row">
-        <span>Forward</span>
-        <button data-control="forward">W</button>
-      </div>
+    <script>
 
-      <div class="control-row">
-        <span>Backward</span>
-        <button data-control="backward">S</button>
-      </div>
+        const authScreen =
+            document.getElementById(
+                "auth-screen"
+            );
 
-      <div class="control-row">
-        <span>Move Left</span>
-        <button data-control="left">A</button>
-      </div>
+        const loginForm =
+            document.getElementById(
+                "login-form"
+            );
 
-      <div class="control-row">
-        <span>Move Right</span>
-        <button data-control="right">D</button>
-      </div>
-
-      <div class="control-row">
-        <span>Sprint</span>
-        <button data-control="sprint">SHIFT</button>
-      </div>
-
-      <div class="control-row">
-        <span>Slide</span>
-        <button data-control="slide">SHIFT</button>
-      </div>
-
-      <div class="control-row">
-        <span>Sneak</span>
-        <button data-control="sneak">C</button>
-      </div>
-
-      <div class="control-row">
-        <span>Jump</span>
-        <button data-control="jump">SPACE</button>
-      </div>
-
-      <div class="settings-buttons">
-
-        <button id="reset-controls">
-          RESET CONTROLS
-        </button>
-
-        <button id="close-settings">
-          CLOSE
-        </button>
-
-      </div>
-
-    </div>
-
-  </div>
-
-
-  <!-- =========================
-       LIBRARIES
-  ========================== -->
-
-  <!-- THREE.JS -->
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
-
-  <!-- SOCKET.IO -->
-  <script src="/socket.io/socket.io.js"></script>
-
-  <!-- NOVASTRIKE GAME -->
-  <script src="/game.js"></script>
-
-
-  <!-- =========================
-       LOGIN / REGISTER
-  ========================== -->
-
-  <script>
-
-    const authScreen =
-      document.getElementById("auth-screen");
-
-    const registerForm =
-      document.getElementById("register-form");
-
-    const loginForm =
-      document.getElementById("login-form");
-
-
-    /*
-     * SHOW REGISTER
-     */
-
-    document
-      .getElementById("show-register")
-      .addEventListener("click", () => {
-
-        loginForm.style.display = "none";
-
-        registerForm.style.display = "block";
-
-      });
-
-
-    /*
-     * SHOW LOGIN
-     */
-
-    document
-      .getElementById("show-login")
-      .addEventListener("click", () => {
-
-        registerForm.style.display = "none";
-
-        loginForm.style.display = "block";
-
-      });
-
-
-    /*
-     * START GAME
-     */
-
-    function startNovaStrike() {
-
-      authScreen.style.display = "none";
-
-      if (
-        typeof window.loadThree === "function"
-      ) {
-
-        window.loadThree();
-
-      }
-
-    }
-
-
-    /*
-     * LOGIN
-     */
-
-    document
-      .getElementById("login-button")
-      .addEventListener("click", async () => {
-
-        const email =
-          document.getElementById(
-            "login-email"
-          ).value.trim();
-
-        const password =
-          document.getElementById(
-            "login-password"
-          ).value;
-
-        const error =
-          document.getElementById(
-            "login-error"
-          );
-
-        error.textContent = "";
-
-
-        try {
-
-          const response =
-            await fetch(
-              "/api/login",
-              {
-                method: "POST",
-
-                headers: {
-                  "Content-Type":
-                    "application/json"
-                },
-
-                credentials: "include",
-
-                body: JSON.stringify({
-                  email,
-                  password
-                })
-              }
+        const registerForm =
+            document.getElementById(
+                "register-form"
             );
 
 
-          const data =
-            await response.json();
+        // ====================================================
+        // REGISTER SCREEN
+        // ====================================================
 
+        document
+            .getElementById(
+                "show-register"
+            )
+            .addEventListener(
+                "click",
+                () => {
 
-          if (!response.ok) {
+                    loginForm.style.display =
+                        "none";
 
-            error.textContent =
-              data.error ||
-              "Login failed.";
+                    registerForm.style.display =
+                        "block";
 
-            return;
-
-          }
-
-
-          startNovaStrike();
-
-
-        } catch (err) {
-
-          console.error(err);
-
-          error.textContent =
-            "Could not connect to server.";
-
-        }
-
-      });
-
-
-    /*
-     * REGISTER
-     */
-
-    document
-      .getElementById("register-button")
-      .addEventListener("click", async () => {
-
-        const username =
-          document.getElementById(
-            "register-username"
-          ).value.trim();
-
-        const email =
-          document.getElementById(
-            "register-email"
-          ).value.trim();
-
-        const password =
-          document.getElementById(
-            "register-password"
-          ).value;
-
-
-        const error =
-          document.getElementById(
-            "register-error"
-          );
-
-        error.textContent = "";
-
-
-        try {
-
-          const response =
-            await fetch(
-              "/api/register",
-              {
-                method: "POST",
-
-                headers: {
-                  "Content-Type":
-                    "application/json"
-                },
-
-                credentials: "include",
-
-                body: JSON.stringify({
-                  username,
-                  email,
-                  password
-                })
-              }
+                }
             );
 
 
-          const data =
-            await response.json();
+        // ====================================================
+        // LOGIN SCREEN
+        // ====================================================
+
+        document
+            .getElementById(
+                "show-login"
+            )
+            .addEventListener(
+                "click",
+                () => {
+
+                    registerForm.style.display =
+                        "none";
+
+                    loginForm.style.display =
+                        "block";
+
+                }
+            );
 
 
-          if (!response.ok) {
+        // ====================================================
+        // START GAME
+        // ====================================================
 
-            error.textContent =
-              data.error ||
-              "Registration failed.";
+        function startNovaStrike() {
 
-            return;
-
-          }
-
-
-          startNovaStrike();
+            authScreen.style.display =
+                "none";
 
 
-        } catch (err) {
+            document.body.style.overflow =
+                "hidden";
 
-          console.error(err);
 
-          error.textContent =
-            "Could not connect to server.";
+            // Give game.js a moment to load
+
+            if (
+                typeof window.loadThree ===
+                "function"
+            ) {
+
+                window.loadThree();
+
+            } else {
+
+                setTimeout(
+                    startNovaStrike,
+                    100
+                );
+
+            }
 
         }
 
-      });
 
-  </script>
+        // ====================================================
+        // LOGIN
+        // ====================================================
+
+        document
+            .getElementById(
+                "login-button"
+            )
+            .addEventListener(
+                "click",
+                async () => {
+
+                    const email =
+                        document.getElementById(
+                            "login-email"
+                        ).value;
+
+                    const password =
+                        document.getElementById(
+                            "login-password"
+                        ).value;
+
+                    const error =
+                        document.getElementById(
+                            "login-error"
+                        );
+
+
+                    error.textContent =
+                        "";
+
+
+                    try {
+
+                        const response =
+                            await fetch(
+                                "/api/login",
+                                {
+                                    method:
+                                        "POST",
+
+                                    headers: {
+                                        "Content-Type":
+                                            "application/json"
+                                    },
+
+                                    credentials:
+                                        "include",
+
+                                    body:
+                                        JSON.stringify({
+                                            email,
+                                            password
+                                        })
+                                }
+                            );
+
+
+                        const data =
+                            await response.json();
+
+
+                        if (
+                            !response.ok
+                        ) {
+
+                            error.textContent =
+                                data.error ||
+                                "Login failed.";
+
+                            return;
+
+                        }
+
+
+                        // Save username
+
+                        if (
+                            data.user &&
+                            data.user.username
+                        ) {
+
+                            localStorage.setItem(
+                                "novaUsername",
+                                data.user.username
+                            );
+
+                        }
+
+
+                        startNovaStrike();
+
+
+                    } catch (err) {
+
+                        console.error(
+                            err
+                        );
+
+
+                        error.textContent =
+                            "Could not connect to server.";
+
+                    }
+
+                }
+            );
+
+
+        // ====================================================
+        // REGISTER
+        // ====================================================
+
+        document
+            .getElementById(
+                "register-button"
+            )
+            .addEventListener(
+                "click",
+                async () => {
+
+                    const username =
+                        document.getElementById(
+                            "register-username"
+                        ).value;
+
+                    const email =
+                        document.getElementById(
+                            "register-email"
+                        ).value;
+
+                    const password =
+                        document.getElementById(
+                            "register-password"
+                        ).value;
+
+                    const error =
+                        document.getElementById(
+                            "register-error"
+                        );
+
+
+                    error.textContent =
+                        "";
+
+
+                    try {
+
+                        const response =
+                            await fetch(
+                                "/api/register",
+                                {
+                                    method:
+                                        "POST",
+
+                                    headers: {
+                                        "Content-Type":
+                                            "application/json"
+                                    },
+
+                                    credentials:
+                                        "include",
+
+                                    body:
+                                        JSON.stringify({
+                                            username,
+                                            email,
+                                            password
+                                        })
+                                }
+                            );
+
+
+                        const data =
+                            await response.json();
+
+
+                        if (
+                            !response.ok
+                        ) {
+
+                            error.textContent =
+                                data.error ||
+                                "Registration failed.";
+
+                            return;
+
+                        }
+
+
+                        localStorage.setItem(
+                            "novaUsername",
+                            username
+                        );
+
+
+                        startNovaStrike();
+
+
+                    } catch (err) {
+
+                        console.error(
+                            err
+                        );
+
+
+                        error.textContent =
+                            "Could not connect to server.";
+
+                    }
+
+                }
+            );
+
+    </script>
 
 </body>
 </html>
