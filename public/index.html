@@ -1,0 +1,309 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+
+  <meta
+    name="viewport"
+    content="width=device-width, initial-scale=1.0"
+  >
+
+  <title>NovaStrike</title>
+
+  <link rel="stylesheet" href="/style.css">
+
+  <script src="/socket.io/socket.io.js"></script>
+
+  <script
+    src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js">
+  </script>
+</head>
+
+<body>
+
+  <!-- =========================
+       LOGIN / REGISTER
+  ========================== -->
+
+  <div id="authScreen">
+
+    <div class="authBox">
+
+      <div class="logo">
+        NOVA<span>STRIKE</span>
+      </div>
+
+      <p class="subtitle">
+        Online multiplayer arena
+      </p>
+
+      <div id="loginPanel">
+
+        <h2>LOGIN</h2>
+
+        <input
+          id="loginEmail"
+          type="email"
+          placeholder="Email"
+          autocomplete="email"
+        >
+
+        <input
+          id="loginPassword"
+          type="password"
+          placeholder="Password"
+          autocomplete="current-password"
+        >
+
+        <button id="loginButton">
+          LOGIN
+        </button>
+
+        <p>
+          Don't have an account?
+          <button
+            class="textButton"
+            id="showRegister"
+          >
+            Create one
+          </button>
+        </p>
+
+      </div>
+
+
+      <div
+        id="registerPanel"
+        class="hidden"
+      >
+
+        <h2>CREATE ACCOUNT</h2>
+
+        <input
+          id="registerUsername"
+          type="text"
+          placeholder="Username"
+          maxlength="20"
+          autocomplete="username"
+        >
+
+        <input
+          id="registerEmail"
+          type="email"
+          placeholder="Email"
+          autocomplete="email"
+        >
+
+        <input
+          id="registerPassword"
+          type="password"
+          placeholder="Password (8+ characters)"
+          autocomplete="new-password"
+        >
+
+        <button id="registerButton">
+          CREATE ACCOUNT
+        </button>
+
+        <p>
+          Already have an account?
+          <button
+            class="textButton"
+            id="showLogin"
+          >
+            Login
+          </button>
+        </p>
+
+      </div>
+
+      <div id="authMessage"></div>
+
+    </div>
+
+  </div>
+
+
+  <!-- =========================
+       MAIN GAME
+  ========================== -->
+
+  <div
+    id="gameScreen"
+    class="hidden"
+  >
+
+    <canvas id="gameCanvas"></canvas>
+
+
+    <!-- TOP BAR -->
+
+    <div class="topBar">
+
+      <div class="gameLogo">
+        NOVA<span>STRIKE</span>
+      </div>
+
+      <div id="playerName">
+        Player
+      </div>
+
+      <button id="settingsButton">
+        ⚙ SETTINGS
+      </button>
+
+    </div>
+
+
+    <!-- CROSSHAIR -->
+
+    <div class="crosshair">
+      <div></div>
+      <div></div>
+      <div></div>
+      <div></div>
+    </div>
+
+
+    <!-- PLAYER COUNT -->
+
+    <div class="playerCounter">
+      Players online:
+      <span id="playerCount">0</span>
+    </div>
+
+
+    <!-- CHAT -->
+
+    <div id="chatBox">
+
+      <div id="chatMessages"></div>
+
+      <form id="chatForm">
+
+        <input
+          id="chatInput"
+          type="text"
+          maxlength="200"
+          placeholder="Press Enter to chat..."
+          autocomplete="off"
+        >
+
+      </form>
+
+    </div>
+
+
+    <!-- MOVEMENT HELP -->
+
+    <div
+      id="controlsHint"
+      class="controlsHint"
+    >
+      <b>W A S D</b> Move
+      <br>
+      <b>R</b> Sprint
+      <br>
+      <b>SHIFT</b> Slide
+      <br>
+      <b>C</b> Sneak
+      <br>
+      <b>ESC</b> Settings
+    </div>
+
+
+    <!-- SETTINGS -->
+
+    <div
+      id="settingsOverlay"
+      class="hidden"
+    >
+
+      <div class="settingsBox">
+
+        <h1>SETTINGS</h1>
+
+        <h3>CONTROLS</h3>
+
+        <div class="controlRow">
+          <span>Forward</span>
+          <button data-control="forward">W</button>
+        </div>
+
+        <div class="controlRow">
+          <span>Backward</span>
+          <button data-control="backward">S</button>
+        </div>
+
+        <div class="controlRow">
+          <span>Left</span>
+          <button data-control="left">A</button>
+        </div>
+
+        <div class="controlRow">
+          <span>Right</span>
+          <button data-control="right">D</button>
+        </div>
+
+        <div class="controlRow">
+          <span>Sprint</span>
+          <button data-control="sprint">R</button>
+        </div>
+
+        <div class="controlRow">
+          <span>Slide</span>
+          <button data-control="slide">SHIFT</button>
+        </div>
+
+        <div class="controlRow">
+          <span>Sneak</span>
+          <button data-control="sneak">C</button>
+        </div>
+
+        <div class="controlRow">
+          <span>Ability</span>
+          <button data-control="ability">Q</button>
+        </div>
+
+        <div class="controlRow">
+          <span>Slot 1</span>
+          <button data-control="slot1">1</button>
+        </div>
+
+        <div class="controlRow">
+          <span>Slot 2</span>
+          <button data-control="slot2">2</button>
+        </div>
+
+        <div class="controlRow">
+          <span>Slot 3</span>
+          <button data-control="slot3">3</button>
+        </div>
+
+        <div class="settingsButtons">
+
+          <button id="resetControls">
+            RESET CONTROLS
+          </button>
+
+          <button id="saveControls">
+            SAVE
+          </button>
+
+          <button id="closeSettings">
+            CLOSE
+          </button>
+
+        </div>
+
+      </div>
+
+    </div>
+
+  </div>
+
+
+  <script src="/game.js"></script>
+
+</body>
+</html>
