@@ -10,300 +10,875 @@
 
   <title>NovaStrike</title>
 
-  <link rel="stylesheet" href="/style.css">
+  <link
+    rel="stylesheet"
+    href="/style.css"
+  >
 
   <script src="/socket.io/socket.io.js"></script>
-
-  <script
-    src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js">
-  </script>
 </head>
 
 <body>
 
-  <!-- =========================
-       LOGIN / REGISTER
-  ========================== -->
+  <!-- LOGIN SCREEN -->
+  <div id="auth-screen">
 
-  <div id="authScreen">
+    <div class="auth-card">
 
-    <div class="authBox">
-
-      <div class="logo">
-        NOVA<span>STRIKE</span>
-      </div>
+      <h1>NOVASTRIKE</h1>
 
       <p class="subtitle">
-        Online multiplayer arena
+        Multiplayer Arena
       </p>
 
-      <div id="loginPanel">
-
-        <h2>LOGIN</h2>
+      <div id="login-form">
 
         <input
-          id="loginEmail"
+          id="login-email"
           type="email"
           placeholder="Email"
           autocomplete="email"
         >
 
         <input
-          id="loginPassword"
+          id="login-password"
           type="password"
           placeholder="Password"
           autocomplete="current-password"
         >
 
-        <button id="loginButton">
+        <button id="login-button">
           LOGIN
         </button>
 
-        <p>
-          Don't have an account?
-          <button
-            class="textButton"
-            id="showRegister"
-          >
-            Create one
-          </button>
-        </p>
+        <button
+          id="show-register"
+          class="secondary-button"
+        >
+          CREATE ACCOUNT
+        </button>
 
       </div>
 
-
       <div
-        id="registerPanel"
-        class="hidden"
+        id="register-form"
+        style="display:none;"
       >
 
-        <h2>CREATE ACCOUNT</h2>
-
         <input
-          id="registerUsername"
+          id="register-username"
           type="text"
-          placeholder="Username"
           maxlength="20"
+          placeholder="Username"
           autocomplete="username"
         >
 
         <input
-          id="registerEmail"
+          id="register-email"
           type="email"
           placeholder="Email"
           autocomplete="email"
         >
 
         <input
-          id="registerPassword"
+          id="register-password"
           type="password"
           placeholder="Password (8+ characters)"
           autocomplete="new-password"
         >
 
-        <button id="registerButton">
+        <button id="register-button">
           CREATE ACCOUNT
         </button>
 
-        <p>
-          Already have an account?
-          <button
-            class="textButton"
-            id="showLogin"
-          >
-            Login
-          </button>
-        </p>
+        <button
+          id="show-login"
+          class="secondary-button"
+        >
+          BACK TO LOGIN
+        </button>
 
       </div>
 
-      <div id="authMessage"></div>
+      <div id="auth-message"></div>
 
     </div>
 
   </div>
 
 
-  <!-- =========================
-       MAIN GAME
-  ========================== -->
-
+  <!-- GAME SCREEN -->
   <div
-    id="gameScreen"
-    class="hidden"
+    id="game-screen"
+    style="display:none;"
   >
 
-    <canvas id="gameCanvas"></canvas>
+    <div id="game-loading">
 
-
-    <!-- TOP BAR -->
-
-    <div class="topBar">
-
-      <div class="gameLogo">
-        NOVA<span>STRIKE</span>
+      <div class="loading-title">
+        NOVASTRIKE
       </div>
 
-      <div id="playerName">
-        Player
+      <div class="loading-text">
+        Loading arena...
       </div>
 
-      <button id="settingsButton">
-        ⚙ SETTINGS
+    </div>
+
+  </div>
+
+
+  <!-- SETTINGS -->
+  <div
+    id="settings-screen"
+    style="display:none;"
+  >
+
+    <div class="settings-card">
+
+      <h2>SETTINGS</h2>
+
+      <p>
+        Change your controls
+      </p>
+
+      <div class="control-row">
+        <span>Move Forward</span>
+        <button data-control="forward">W</button>
+      </div>
+
+      <div class="control-row">
+        <span>Move Backward</span>
+        <button data-control="backward">S</button>
+      </div>
+
+      <div class="control-row">
+        <span>Move Left</span>
+        <button data-control="left">A</button>
+      </div>
+
+      <div class="control-row">
+        <span>Move Right</span>
+        <button data-control="right">D</button>
+      </div>
+
+      <div class="control-row">
+        <span>Sprint</span>
+        <button data-control="sprint">R</button>
+      </div>
+
+      <div class="control-row">
+        <span>Slide</span>
+        <button data-control="slide">SHIFT</button>
+      </div>
+
+      <div class="control-row">
+        <span>Sneak</span>
+        <button data-control="sneak">C</button>
+      </div>
+
+      <div class="control-row">
+        <span>Jump</span>
+        <button data-control="jump">SPACE</button>
+      </div>
+
+      <button id="reset-controls">
+        RESET CONTROLS
+      </button>
+
+      <button id="close-settings">
+        CLOSE
       </button>
 
     </div>
 
-
-    <!-- CROSSHAIR -->
-
-    <div class="crosshair">
-      <div></div>
-      <div></div>
-      <div></div>
-      <div></div>
-    </div>
-
-
-    <!-- PLAYER COUNT -->
-
-    <div class="playerCounter">
-      Players online:
-      <span id="playerCount">0</span>
-    </div>
-
-
-    <!-- CHAT -->
-
-    <div id="chatBox">
-
-      <div id="chatMessages"></div>
-
-      <form id="chatForm">
-
-        <input
-          id="chatInput"
-          type="text"
-          maxlength="200"
-          placeholder="Press Enter to chat..."
-          autocomplete="off"
-        >
-
-      </form>
-
-    </div>
-
-
-    <!-- MOVEMENT HELP -->
-
-    <div
-      id="controlsHint"
-      class="controlsHint"
-    >
-      <b>W A S D</b> Move
-      <br>
-      <b>R</b> Sprint
-      <br>
-      <b>SHIFT</b> Slide
-      <br>
-      <b>C</b> Sneak
-      <br>
-      <b>ESC</b> Settings
-    </div>
-
-
-    <!-- SETTINGS -->
-
-    <div
-      id="settingsOverlay"
-      class="hidden"
-    >
-
-      <div class="settingsBox">
-
-        <h1>SETTINGS</h1>
-
-        <h3>CONTROLS</h3>
-
-        <div class="controlRow">
-          <span>Forward</span>
-          <button data-control="forward">W</button>
-        </div>
-
-        <div class="controlRow">
-          <span>Backward</span>
-          <button data-control="backward">S</button>
-        </div>
-
-        <div class="controlRow">
-          <span>Left</span>
-          <button data-control="left">A</button>
-        </div>
-
-        <div class="controlRow">
-          <span>Right</span>
-          <button data-control="right">D</button>
-        </div>
-
-        <div class="controlRow">
-          <span>Sprint</span>
-          <button data-control="sprint">R</button>
-        </div>
-
-        <div class="controlRow">
-          <span>Slide</span>
-          <button data-control="slide">SHIFT</button>
-        </div>
-
-        <div class="controlRow">
-          <span>Sneak</span>
-          <button data-control="sneak">C</button>
-        </div>
-
-        <div class="controlRow">
-          <span>Ability</span>
-          <button data-control="ability">Q</button>
-        </div>
-
-        <div class="controlRow">
-          <span>Slot 1</span>
-          <button data-control="slot1">1</button>
-        </div>
-
-        <div class="controlRow">
-          <span>Slot 2</span>
-          <button data-control="slot2">2</button>
-        </div>
-
-        <div class="controlRow">
-          <span>Slot 3</span>
-          <button data-control="slot3">3</button>
-        </div>
-
-        <div class="settingsButtons">
-
-          <button id="resetControls">
-            RESET CONTROLS
-          </button>
-
-          <button id="saveControls">
-            SAVE
-          </button>
-
-          <button id="closeSettings">
-            CLOSE
-          </button>
-
-        </div>
-
-      </div>
-
-    </div>
-
   </div>
 
 
-  <script src="/game.js"></script>
+  <style>
+
+    #auth-screen {
+      position: fixed;
+      inset: 0;
+
+      display: flex;
+      align-items: center;
+      justify-content: center;
+
+      background:
+        radial-gradient(
+          circle at center,
+          #263550 0%,
+          #111827 45%,
+          #080b12 100%
+        );
+
+      color: white;
+
+      z-index: 1000;
+    }
+
+    .auth-card {
+      width: 360px;
+      max-width: calc(100% - 30px);
+
+      padding: 35px;
+
+      background: rgba(
+        10,
+        15,
+        25,
+        0.92
+      );
+
+      border: 1px solid rgba(
+        255,
+        255,
+        255,
+        0.12
+      );
+
+      border-radius: 14px;
+
+      box-shadow:
+        0 20px 70px
+        rgba(0,0,0,.45);
+
+      text-align: center;
+    }
+
+    .auth-card h1 {
+      margin: 0;
+
+      font-size: 34px;
+      letter-spacing: 4px;
+    }
+
+    .subtitle {
+      margin-top: 8px;
+      margin-bottom: 25px;
+
+      color: #8da2c7;
+    }
+
+    .auth-card input {
+      width: 100%;
+
+      padding: 13px;
+
+      margin-bottom: 10px;
+
+      border: 1px solid rgba(
+        255,
+        255,
+        255,
+        0.12
+      );
+
+      border-radius: 7px;
+
+      background: #151c2a;
+
+      color: white;
+
+      outline: none;
+
+      font-size: 14px;
+    }
+
+    .auth-card input:focus {
+      border-color: #719eff;
+    }
+
+    .auth-card button {
+      width: 100%;
+
+      padding: 13px;
+
+      margin-top: 8px;
+
+      border: 0;
+
+      border-radius: 7px;
+
+      background: #467ff2;
+
+      color: white;
+
+      font-weight: bold;
+
+      cursor: pointer;
+    }
+
+    .auth-card button:hover {
+      filter: brightness(1.12);
+    }
+
+    .auth-card .secondary-button {
+      background: #252e40;
+    }
+
+    #auth-message {
+      min-height: 22px;
+
+      margin-top: 15px;
+
+      font-size: 13px;
+
+      color: #ff8c8c;
+    }
+
+    #game-loading {
+      position: fixed;
+      inset: 0;
+
+      display: flex;
+      flex-direction: column;
+
+      justify-content: center;
+      align-items: center;
+
+      background: #101522;
+
+      color: white;
+
+      z-index: 900;
+    }
+
+    .loading-title {
+      font-size: 38px;
+
+      font-weight: bold;
+
+      letter-spacing: 5px;
+    }
+
+    .loading-text {
+      margin-top: 12px;
+
+      color: #8da2c7;
+    }
+
+    #settings-screen {
+      position: fixed;
+      inset: 0;
+
+      display: flex;
+      align-items: center;
+      justify-content: center;
+
+      background: rgba(
+        0,
+        0,
+        0,
+        .65
+      );
+
+      z-index: 2000;
+    }
+
+    .settings-card {
+      width: 420px;
+      max-width: calc(100% - 30px);
+
+      padding: 25px;
+
+      background: #111827;
+
+      color: white;
+
+      border-radius: 12px;
+    }
+
+    .settings-card h2 {
+      margin-top: 0;
+    }
+
+    .control-row {
+      display: flex;
+
+      align-items: center;
+      justify-content: space-between;
+
+      padding: 10px 0;
+
+      border-bottom:
+        1px solid
+        rgba(
+          255,
+          255,
+          255,
+          .08
+        );
+    }
+
+    .control-row button {
+      width: 90px;
+
+      padding: 8px;
+
+      border: 0;
+
+      border-radius: 5px;
+
+      background: #29364e;
+
+      color: white;
+
+      cursor: pointer;
+    }
+
+    #reset-controls,
+    #close-settings {
+      width: 100%;
+
+      padding: 11px;
+
+      margin-top: 12px;
+
+      border: 0;
+
+      border-radius: 6px;
+
+      background: #467ff2;
+
+      color: white;
+
+      cursor: pointer;
+    }
+
+    #close-settings {
+      background: #30394a;
+    }
+
+  </style>
+
+
+  <script>
+
+    let currentPlayer = null;
+
+    const authScreen =
+      document.getElementById(
+        "auth-screen"
+      );
+
+    const gameScreen =
+      document.getElementById(
+        "game-screen"
+      );
+
+    const authMessage =
+      document.getElementById(
+        "auth-message"
+      );
+
+
+    /* =========================
+       AUTH
+    ========================= */
+
+    async function api(
+      url,
+      options = {}
+    ) {
+
+      const response =
+        await fetch(
+          url,
+          {
+            credentials: "include",
+
+            headers: {
+              "Content-Type":
+                "application/json",
+
+              ...(options.headers || {})
+            },
+
+            ...options
+          }
+        );
+
+      const data =
+        await response.json()
+          .catch(() => ({}));
+
+      if (!response.ok) {
+
+        throw new Error(
+          data.error ||
+          "Request failed."
+        );
+      }
+
+      return data;
+    }
+
+
+    async function checkLogin() {
+
+      try {
+
+        const data =
+          await api(
+            "/api/me"
+          );
+
+        currentPlayer =
+          data.player;
+
+        openGame();
+
+      } catch {
+
+        authScreen.style.display =
+          "flex";
+      }
+    }
+
+
+    document
+      .getElementById(
+        "login-button"
+      )
+      .addEventListener(
+        "click",
+        async () => {
+
+          authMessage.textContent =
+            "";
+
+          try {
+
+            const data =
+              await api(
+                "/api/login",
+                {
+                  method: "POST",
+
+                  body:
+                    JSON.stringify({
+                      email:
+                        document
+                          .getElementById(
+                            "login-email"
+                          )
+                          .value,
+
+                      password:
+                        document
+                          .getElementById(
+                            "login-password"
+                          )
+                          .value
+                    })
+                }
+              );
+
+            currentPlayer =
+              data.player;
+
+            openGame();
+
+          } catch (error) {
+
+            authMessage.textContent =
+              error.message;
+          }
+        }
+      );
+
+
+    document
+      .getElementById(
+        "register-button"
+      )
+      .addEventListener(
+        "click",
+        async () => {
+
+          authMessage.textContent =
+            "";
+
+          try {
+
+            const data =
+              await api(
+                "/api/register",
+                {
+                  method: "POST",
+
+                  body:
+                    JSON.stringify({
+
+                      username:
+                        document
+                          .getElementById(
+                            "register-username"
+                          )
+                          .value,
+
+                      email:
+                        document
+                          .getElementById(
+                            "register-email"
+                          )
+                          .value,
+
+                      password:
+                        document
+                          .getElementById(
+                            "register-password"
+                          )
+                          .value
+
+                    })
+                }
+              );
+
+            currentPlayer =
+              data.player;
+
+            openGame();
+
+          } catch (error) {
+
+            authMessage.textContent =
+              error.message;
+          }
+        }
+      );
+
+
+    document
+      .getElementById(
+        "show-register"
+      )
+      .addEventListener(
+        "click",
+        () => {
+
+          document
+            .getElementById(
+              "login-form"
+            )
+            .style.display =
+            "none";
+
+          document
+            .getElementById(
+              "register-form"
+            )
+            .style.display =
+            "block";
+
+          authMessage.textContent =
+            "";
+        }
+      );
+
+
+    document
+      .getElementById(
+        "show-login"
+      )
+      .addEventListener(
+        "click",
+        () => {
+
+          document
+            .getElementById(
+              "register-form"
+            )
+            .style.display =
+            "none";
+
+          document
+            .getElementById(
+              "login-form"
+            )
+            .style.display =
+            "block";
+
+          authMessage.textContent =
+            "";
+        }
+      );
+
+
+    /* =========================
+       START GAME
+    ========================= */
+
+    function openGame() {
+
+      authScreen.style.display =
+        "none";
+
+      gameScreen.style.display =
+        "block";
+
+      document
+        .getElementById(
+          "game-loading"
+        )
+        .style.display =
+        "flex";
+
+      setTimeout(() => {
+
+        document
+          .getElementById(
+            "game-loading"
+          )
+          .style.display =
+          "none";
+
+        if (
+          typeof loadThree ===
+          "function"
+        ) {
+
+          loadThree();
+        }
+
+      }, 500);
+    }
+
+
+    /* =========================
+       ESC SETTINGS
+    ========================= */
+
+    document.addEventListener(
+      "keydown",
+      event => {
+
+        if (
+          event.key === "Escape"
+        ) {
+
+          const settings =
+            document
+              .getElementById(
+                "settings-screen"
+              );
+
+          settings.style.display =
+            settings.style.display ===
+            "none"
+              ? "flex"
+              : "none";
+        }
+      }
+    );
+
+
+    document
+      .getElementById(
+        "close-settings"
+      )
+      .addEventListener(
+        "click",
+        () => {
+
+          document
+            .getElementById(
+              "settings-screen"
+            )
+            .style.display =
+            "none";
+        }
+      );
+
+
+    document
+      .getElementById(
+        "reset-controls"
+      )
+      .addEventListener(
+        "click",
+        async () => {
+
+          const defaults = {
+
+            forward: "KeyW",
+            backward: "KeyS",
+            left: "KeyA",
+            right: "KeyD",
+            sprint: "KeyR",
+            slide: "ShiftLeft",
+            sneak: "KeyC",
+            jump: "Space"
+
+          };
+
+          Object.assign(
+            controls,
+            defaults
+          );
+
+          if (currentPlayer) {
+
+            try {
+
+              await api(
+                "/api/controls",
+                {
+                  method: "PUT",
+
+                  body:
+                    JSON.stringify({
+                      controls:
+                        defaults
+                    })
+                }
+              );
+
+            } catch {}
+          }
+
+          alert(
+            "Controls reset."
+          );
+        }
+      );
+
+
+    /* =========================
+       LOAD SAVED CONTROLS
+    ========================= */
+
+    async function loadAccount() {
+
+      try {
+
+        const data =
+          await api(
+            "/api/me"
+          );
+
+        currentPlayer =
+          data.player;
+
+        if (
+          currentPlayer.controls
+        ) {
+
+          Object.assign(
+            controls,
+            currentPlayer.controls
+          );
+        }
+
+      } catch {}
+    }
+
+
+    checkLogin();
+
+  </script>
 
 </body>
 </html>
