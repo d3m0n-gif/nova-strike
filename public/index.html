@@ -2,7 +2,6 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-
   <meta
     name="viewport"
     content="width=device-width, initial-scale=1.0"
@@ -10,20 +9,18 @@
 
   <title>NovaStrike</title>
 
-  <link
-    rel="stylesheet"
-    href="/style.css"
-  >
-
-  <script src="/socket.io/socket.io.js"></script>
+  <link rel="stylesheet" href="style.css">
 </head>
 
 <body>
 
-  <!-- LOGIN SCREEN -->
+  <!-- =========================
+       LOGIN SCREEN
+  ========================== -->
+
   <div id="auth-screen">
 
-    <div class="auth-card">
+    <div class="auth-box">
 
       <h1>NOVASTRIKE</h1>
 
@@ -51,6 +48,8 @@
           LOGIN
         </button>
 
+        <p id="login-error"></p>
+
         <button
           id="show-register"
           class="secondary-button"
@@ -59,6 +58,9 @@
         </button>
 
       </div>
+
+
+      <!-- REGISTER -->
 
       <div
         id="register-form"
@@ -70,7 +72,6 @@
           type="text"
           maxlength="20"
           placeholder="Username"
-          autocomplete="username"
         >
 
         <input
@@ -83,13 +84,15 @@
         <input
           id="register-password"
           type="password"
-          placeholder="Password (8+ characters)"
+          placeholder="Password"
           autocomplete="new-password"
         >
 
         <button id="register-button">
           CREATE ACCOUNT
         </button>
+
+        <p id="register-error"></p>
 
         <button
           id="show-login"
@@ -100,55 +103,44 @@
 
       </div>
 
-      <div id="auth-message"></div>
-
     </div>
 
   </div>
 
 
-  <!-- GAME SCREEN -->
-  <div
-    id="game-screen"
-    style="display:none;"
-  >
+  <!-- =========================
+       GAME
+  ========================== -->
 
-    <div id="game-loading">
+  <div id="game-screen">
 
-      <div class="loading-title">
-        NOVASTRIKE
-      </div>
-
-      <div class="loading-text">
-        Loading arena...
-      </div>
-
-    </div>
+    <!-- game.js creates the 3D canvas -->
 
   </div>
 
 
-  <!-- SETTINGS -->
+  <!-- =========================
+       SETTINGS
+  ========================== -->
+
   <div
     id="settings-screen"
     style="display:none;"
   >
 
-    <div class="settings-card">
+    <div class="settings-box">
 
       <h2>SETTINGS</h2>
 
-      <p>
-        Change your controls
-      </p>
+      <p>Controls</p>
 
       <div class="control-row">
-        <span>Move Forward</span>
+        <span>Forward</span>
         <button data-control="forward">W</button>
       </div>
 
       <div class="control-row">
-        <span>Move Backward</span>
+        <span>Backward</span>
         <button data-control="backward">S</button>
       </div>
 
@@ -182,701 +174,217 @@
         <button data-control="jump">SPACE</button>
       </div>
 
-      <button id="reset-controls">
-        RESET CONTROLS
-      </button>
+      <div class="settings-buttons">
 
-      <button id="close-settings">
-        CLOSE
-      </button>
+        <button id="reset-controls">
+          RESET CONTROLS
+        </button>
+
+        <button id="close-settings">
+          CLOSE
+        </button>
+
+      </div>
 
     </div>
 
   </div>
 
 
-  <style>
+  <!-- =========================
+       SCRIPTS
+  ========================== -->
 
-    #auth-screen {
-      position: fixed;
-      inset: 0;
+  <script src="/socket.io/socket.io.js"></script>
 
-      display: flex;
-      align-items: center;
-      justify-content: center;
-
-      background:
-        radial-gradient(
-          circle at center,
-          #263550 0%,
-          #111827 45%,
-          #080b12 100%
-        );
-
-      color: white;
-
-      z-index: 1000;
-    }
-
-    .auth-card {
-      width: 360px;
-      max-width: calc(100% - 30px);
-
-      padding: 35px;
-
-      background: rgba(
-        10,
-        15,
-        25,
-        0.92
-      );
-
-      border: 1px solid rgba(
-        255,
-        255,
-        255,
-        0.12
-      );
-
-      border-radius: 14px;
-
-      box-shadow:
-        0 20px 70px
-        rgba(0,0,0,.45);
-
-      text-align: center;
-    }
-
-    .auth-card h1 {
-      margin: 0;
-
-      font-size: 34px;
-      letter-spacing: 4px;
-    }
-
-    .subtitle {
-      margin-top: 8px;
-      margin-bottom: 25px;
-
-      color: #8da2c7;
-    }
-
-    .auth-card input {
-      width: 100%;
-
-      padding: 13px;
-
-      margin-bottom: 10px;
-
-      border: 1px solid rgba(
-        255,
-        255,
-        255,
-        0.12
-      );
-
-      border-radius: 7px;
-
-      background: #151c2a;
-
-      color: white;
-
-      outline: none;
-
-      font-size: 14px;
-    }
-
-    .auth-card input:focus {
-      border-color: #719eff;
-    }
-
-    .auth-card button {
-      width: 100%;
-
-      padding: 13px;
-
-      margin-top: 8px;
-
-      border: 0;
-
-      border-radius: 7px;
-
-      background: #467ff2;
-
-      color: white;
-
-      font-weight: bold;
-
-      cursor: pointer;
-    }
-
-    .auth-card button:hover {
-      filter: brightness(1.12);
-    }
-
-    .auth-card .secondary-button {
-      background: #252e40;
-    }
-
-    #auth-message {
-      min-height: 22px;
-
-      margin-top: 15px;
-
-      font-size: 13px;
-
-      color: #ff8c8c;
-    }
-
-    #game-loading {
-      position: fixed;
-      inset: 0;
-
-      display: flex;
-      flex-direction: column;
-
-      justify-content: center;
-      align-items: center;
-
-      background: #101522;
-
-      color: white;
-
-      z-index: 900;
-    }
-
-    .loading-title {
-      font-size: 38px;
-
-      font-weight: bold;
-
-      letter-spacing: 5px;
-    }
-
-    .loading-text {
-      margin-top: 12px;
-
-      color: #8da2c7;
-    }
-
-    #settings-screen {
-      position: fixed;
-      inset: 0;
-
-      display: flex;
-      align-items: center;
-      justify-content: center;
-
-      background: rgba(
-        0,
-        0,
-        0,
-        .65
-      );
-
-      z-index: 2000;
-    }
-
-    .settings-card {
-      width: 420px;
-      max-width: calc(100% - 30px);
-
-      padding: 25px;
-
-      background: #111827;
-
-      color: white;
-
-      border-radius: 12px;
-    }
-
-    .settings-card h2 {
-      margin-top: 0;
-    }
-
-    .control-row {
-      display: flex;
-
-      align-items: center;
-      justify-content: space-between;
-
-      padding: 10px 0;
-
-      border-bottom:
-        1px solid
-        rgba(
-          255,
-          255,
-          255,
-          .08
-        );
-    }
-
-    .control-row button {
-      width: 90px;
-
-      padding: 8px;
-
-      border: 0;
-
-      border-radius: 5px;
-
-      background: #29364e;
-
-      color: white;
-
-      cursor: pointer;
-    }
-
-    #reset-controls,
-    #close-settings {
-      width: 100%;
-
-      padding: 11px;
-
-      margin-top: 12px;
-
-      border: 0;
-
-      border-radius: 6px;
-
-      background: #467ff2;
-
-      color: white;
-
-      cursor: pointer;
-    }
-
-    #close-settings {
-      background: #30394a;
-    }
-
-  </style>
-
+  <script type="module" src="/game.js"></script>
 
   <script>
 
-    let currentPlayer = null;
-
     const authScreen =
-      document.getElementById(
-        "auth-screen"
-      );
+      document.getElementById("auth-screen");
 
-    const gameScreen =
-      document.getElementById(
-        "game-screen"
-      );
+    const registerForm =
+      document.getElementById("register-form");
 
-    const authMessage =
-      document.getElementById(
-        "auth-message"
-      );
+    const loginForm =
+      document.getElementById("login-form");
 
 
-    /* =========================
-       AUTH
-    ========================= */
+    document
+      .getElementById("show-register")
+      .addEventListener("click", () => {
 
-    async function api(
-      url,
-      options = {}
-    ) {
+        loginForm.style.display = "none";
+        registerForm.style.display = "block";
 
-      const response =
-        await fetch(
-          url,
-          {
-            credentials: "include",
-
-            headers: {
-              "Content-Type":
-                "application/json",
-
-              ...(options.headers || {})
-            },
-
-            ...options
-          }
-        );
-
-      const data =
-        await response.json()
-          .catch(() => ({}));
-
-      if (!response.ok) {
-
-        throw new Error(
-          data.error ||
-          "Request failed."
-        );
-      }
-
-      return data;
-    }
+      });
 
 
-    async function checkLogin() {
+    document
+      .getElementById("show-login")
+      .addEventListener("click", () => {
 
-      try {
+        registerForm.style.display = "none";
+        loginForm.style.display = "block";
 
-        const data =
-          await api(
-            "/api/me"
+      });
+
+
+    /* LOGIN */
+
+    document
+      .getElementById("login-button")
+      .addEventListener("click", async () => {
+
+        const email =
+          document.getElementById(
+            "login-email"
+          ).value;
+
+        const password =
+          document.getElementById(
+            "login-password"
+          ).value;
+
+        const error =
+          document.getElementById(
+            "login-error"
           );
 
-        currentPlayer =
-          data.player;
+        error.textContent = "";
 
-        openGame();
+        try {
 
-      } catch {
+          const response =
+            await fetch(
+              "/api/login",
+              {
+                method: "POST",
 
-        authScreen.style.display =
-          "flex";
-      }
-    }
+                headers: {
+                  "Content-Type":
+                    "application/json"
+                },
 
+                credentials: "include",
 
-    document
-      .getElementById(
-        "login-button"
-      )
-      .addEventListener(
-        "click",
-        async () => {
+                body: JSON.stringify({
+                  email,
+                  password
+                })
+              }
+            );
 
-          authMessage.textContent =
-            "";
+          const data =
+            await response.json();
 
-          try {
-
-            const data =
-              await api(
-                "/api/login",
-                {
-                  method: "POST",
-
-                  body:
-                    JSON.stringify({
-                      email:
-                        document
-                          .getElementById(
-                            "login-email"
-                          )
-                          .value,
-
-                      password:
-                        document
-                          .getElementById(
-                            "login-password"
-                          )
-                          .value
-                    })
-                }
-              );
-
-            currentPlayer =
-              data.player;
-
-            openGame();
-
-          } catch (error) {
-
-            authMessage.textContent =
-              error.message;
+          if (!response.ok) {
+            error.textContent =
+              data.error ||
+              "Login failed.";
+            return;
           }
-        }
-      );
 
-
-    document
-      .getElementById(
-        "register-button"
-      )
-      .addEventListener(
-        "click",
-        async () => {
-
-          authMessage.textContent =
-            "";
-
-          try {
-
-            const data =
-              await api(
-                "/api/register",
-                {
-                  method: "POST",
-
-                  body:
-                    JSON.stringify({
-
-                      username:
-                        document
-                          .getElementById(
-                            "register-username"
-                          )
-                          .value,
-
-                      email:
-                        document
-                          .getElementById(
-                            "register-email"
-                          )
-                          .value,
-
-                      password:
-                        document
-                          .getElementById(
-                            "register-password"
-                          )
-                          .value
-
-                    })
-                }
-              );
-
-            currentPlayer =
-              data.player;
-
-            openGame();
-
-          } catch (error) {
-
-            authMessage.textContent =
-              error.message;
-          }
-        }
-      );
-
-
-    document
-      .getElementById(
-        "show-register"
-      )
-      .addEventListener(
-        "click",
-        () => {
-
-          document
-            .getElementById(
-              "login-form"
-            )
-            .style.display =
+          authScreen.style.display =
             "none";
 
-          document
-            .getElementById(
-              "register-form"
-            )
-            .style.display =
-            "block";
-
-          authMessage.textContent =
-            "";
-        }
-      );
-
-
-    document
-      .getElementById(
-        "show-login"
-      )
-      .addEventListener(
-        "click",
-        () => {
-
-          document
-            .getElementById(
-              "register-form"
-            )
-            .style.display =
-            "none";
-
-          document
-            .getElementById(
-              "login-form"
-            )
-            .style.display =
-            "block";
-
-          authMessage.textContent =
-            "";
-        }
-      );
-
-
-    /* =========================
-       START GAME
-    ========================= */
-
-    function openGame() {
-
-      authScreen.style.display =
-        "none";
-
-      gameScreen.style.display =
-        "block";
-
-      document
-        .getElementById(
-          "game-loading"
-        )
-        .style.display =
-        "flex";
-
-      setTimeout(() => {
-
-        document
-          .getElementById(
-            "game-loading"
-          )
-          .style.display =
-          "none";
-
-        if (
-          typeof loadThree ===
-          "function"
-        ) {
-
-          loadThree();
-        }
-
-      }, 500);
-    }
-
-
-    /* =========================
-       ESC SETTINGS
-    ========================= */
-
-    document.addEventListener(
-      "keydown",
-      event => {
-
-        if (
-          event.key === "Escape"
-        ) {
-
-          const settings =
-            document
-              .getElementById(
-                "settings-screen"
-              );
-
-          settings.style.display =
-            settings.style.display ===
-            "none"
-              ? "flex"
-              : "none";
-        }
-      }
-    );
-
-
-    document
-      .getElementById(
-        "close-settings"
-      )
-      .addEventListener(
-        "click",
-        () => {
-
-          document
-            .getElementById(
-              "settings-screen"
-            )
-            .style.display =
-            "none";
-        }
-      );
-
-
-    document
-      .getElementById(
-        "reset-controls"
-      )
-      .addEventListener(
-        "click",
-        async () => {
-
-          const defaults = {
-
-            forward: "KeyW",
-            backward: "KeyS",
-            left: "KeyA",
-            right: "KeyD",
-            sprint: "KeyR",
-            slide: "ShiftLeft",
-            sneak: "KeyC",
-            jump: "Space"
-
-          };
-
-          Object.assign(
-            controls,
-            defaults
-          );
-
-          if (currentPlayer) {
-
-            try {
-
-              await api(
-                "/api/controls",
-                {
-                  method: "PUT",
-
-                  body:
-                    JSON.stringify({
-                      controls:
-                        defaults
-                    })
-                }
-              );
-
-            } catch {}
+          if (
+            typeof window.loadThree ===
+            "function"
+          ) {
+            window.loadThree();
           }
 
-          alert(
-            "Controls reset."
-          );
-        }
-      );
+        } catch (err) {
 
+          error.textContent =
+            "Could not connect to server.";
 
-    /* =========================
-       LOAD SAVED CONTROLS
-    ========================= */
-
-    async function loadAccount() {
-
-      try {
-
-        const data =
-          await api(
-            "/api/me"
-          );
-
-        currentPlayer =
-          data.player;
-
-        if (
-          currentPlayer.controls
-        ) {
-
-          Object.assign(
-            controls,
-            currentPlayer.controls
-          );
         }
 
-      } catch {}
-    }
+      });
 
 
-    checkLogin();
+    /* REGISTER */
+
+    document
+      .getElementById("register-button")
+      .addEventListener("click", async () => {
+
+        const username =
+          document.getElementById(
+            "register-username"
+          ).value;
+
+        const email =
+          document.getElementById(
+            "register-email"
+          ).value;
+
+        const password =
+          document.getElementById(
+            "register-password"
+          ).value;
+
+        const error =
+          document.getElementById(
+            "register-error"
+          );
+
+        error.textContent = "";
+
+        try {
+
+          const response =
+            await fetch(
+              "/api/register",
+              {
+                method: "POST",
+
+                headers: {
+                  "Content-Type":
+                    "application/json"
+                },
+
+                credentials: "include",
+
+                body: JSON.stringify({
+                  username,
+                  email,
+                  password
+                })
+              }
+            );
+
+          const data =
+            await response.json();
+
+          if (!response.ok) {
+            error.textContent =
+              data.error ||
+              "Registration failed.";
+            return;
+          }
+
+          authScreen.style.display =
+            "none";
+
+          if (
+            typeof window.loadThree ===
+            "function"
+          ) {
+            window.loadThree();
+          }
+
+        } catch (err) {
+
+          error.textContent =
+            "Could not connect to server.";
+
+        }
+
+      });
 
   </script>
 
