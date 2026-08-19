@@ -1,44 +1,86 @@
 const express = require("express");
 const http = require("http");
-const { Server } = require("socket.io");
-const bcrypt = require("bcrypt");
-const jwt = require("jsonwebtoken");
-const cookieParser = require("cookie-parser");
+const path = require("path");
+const bcrypt = require("bcryptjs");
 const { Pool } = require("pg");
+const session = require("express-session");
+const PgSession = require("connect-pg-simple")(session);
+const { Server } = require("socket.io");
 
 const app = express();
 const server = http.createServer(app);
-const io = new Server(server);
 
-const PORT = process.env.PORT || 10000;
-
-const JWT_SECRET =
-  process.env.JWT_SECRET || "CHANGE_THIS_IN_RENDER";
-
-const pool = new Pool({
-  connectionString: process.env.DATABASE_URL,
-  ssl: process.env.DATABASE_URL
-    ? { rejectUnauthorized: false }
-    : false
+const io = new Server(server, {
+  cors: {
+    origin: true,
+    credentials: true
+  }
 });
 
-app.use(express.json());
-app.use(cookieParser());
-app.use(express.static("public"));
+const PORT = process.env.PORT || 10000;
 
 /* =========================
    DATABASE
 ========================= */
 
+if (!process.env.DATABASE_URL) {
+  console.error("DATABASE_URL is missing.");
+  process.exit(1);
+}
+
+const pool = new Pool({
+  connectionString: process.env.DATABASE_URL,
+  ssl: {
+    rejectUnauthorized: false
+  }
+});
+
+/* =========================
+   EXPRESS
+========================= */
+
+app.use(express.json());
+
+app.use(
+  session({
+    store: new PgSession({
+      pool,
+      tableName: "user_sessions",
+      createTableIfMissing: true
+    }),
+
+    secret:
+      process.env.SESSION_SECRET ||
+      "CHANGE_THIS_SECRET_IN_RENDER",
+
+    resave: false,
+
+    saveUninitialized: false,
+
+    cookie: {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === "production",
+      maxAge: 1000 * 60 * 60 * 24 * 30
+    }
+  })
+);
+
+app.use(express.static(path.join(__dirname, "public")));
+
+/* =========================
+   DATABASE SETUP
+========================= */
+
 async function setupDatabase() {
+
   await pool.query(`
     CREATE TABLE IF NOT EXISTS players (
       id SERIAL PRIMARY KEY,
-      email TEXT UNIQUE NOT NULL,
+      username VARCHAR(20) UNIQUE NOT NULL,
+      email VARCHAR(255) UNIQUE NOT NULL,
       password_hash TEXT NOT NULL,
-      username TEXT UNIQUE NOT NULL,
       controls JSONB NOT NULL DEFAULT '{}'::jsonb,
-      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     );
   `);
 
@@ -46,57 +88,25 @@ async function setupDatabase() {
 }
 
 /* =========================
-   DEFAULT CONTROLS
+   AUTH HELPERS
 ========================= */
 
-const DEFAULT_CONTROLS = {
-  forward: "KeyW",
-  backward: "KeyS",
-  left: "KeyA",
-  right: "KeyD",
-  sprint: "KeyR",
-  slide: "ShiftLeft",
-  sneak: "KeyC",
-  ability: "KeyQ",
-  slot1: "Digit1",
-  slot2: "Digit2",
-  slot3: "Digit3"
-};
-
-/* =========================
-   AUTH
-========================= */
-
-function createToken(player) {
-  return jwt.sign(
-    {
-      id: player.id,
-      username: player.username
-    },
-    JWT_SECRET,
-    {
-      expiresIn: "30d"
-    }
-  );
+function validEmail(email) {
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
 }
 
-function authenticate(req, res, next) {
-  const token = req.cookies.nova_session;
+function validUsername(username) {
+  return /^[a-zA-Z0-9_-]{3,20}$/.test(username);
+}
 
-  if (!token) {
-    return res.status(401).json({
-      error: "Not logged in."
-    });
-  }
+function cleanPlayer(player) {
 
-  try {
-    req.player = jwt.verify(token, JWT_SECRET);
-    next();
-  } catch {
-    return res.status(401).json({
-      error: "Session expired."
-    });
-  }
+  return {
+    id: player.id,
+    username: player.username,
+    email: player.email,
+    controls: player.controls || {}
+  };
 }
 
 /* =========================
@@ -104,86 +114,117 @@ function authenticate(req, res, next) {
 ========================= */
 
 app.post("/api/register", async (req, res) => {
-  try {
-    const { email, password, username } = req.body;
 
-    if (!email || !password || !username) {
+  try {
+
+    let {
+      username,
+      email,
+      password
+    } = req.body;
+
+    username =
+      String(username || "").trim();
+
+    email =
+      String(email || "")
+        .trim()
+        .toLowerCase();
+
+    password =
+      String(password || "");
+
+    if (!validUsername(username)) {
+
       return res.status(400).json({
-        error: "Email, password and username are required."
+        error:
+          "Username must be 3-20 characters and only use letters, numbers, _ or -."
       });
     }
 
-    if (username.length < 2 || username.length > 20) {
+    if (!validEmail(email)) {
+
       return res.status(400).json({
-        error: "Username must be 2-20 characters."
+        error: "Enter a valid email."
       });
     }
 
     if (password.length < 8) {
+
       return res.status(400).json({
-        error: "Password must be at least 8 characters."
+        error:
+          "Password must be at least 8 characters."
       });
     }
 
-    const existing = await pool.query(
-      `
-      SELECT id
-      FROM players
-      WHERE LOWER(email) = LOWER($1)
-         OR LOWER(username) = LOWER($2)
-      `,
-      [email.trim(), username.trim()]
-    );
+    const existing =
+      await pool.query(
+        `
+        SELECT id
+        FROM players
+        WHERE LOWER(username) = LOWER($1)
+           OR LOWER(email) = LOWER($2)
+        LIMIT 1
+        `,
+        [username, email]
+      );
 
     if (existing.rows.length > 0) {
+
       return res.status(409).json({
-        error: "That email or username is already registered."
+        error:
+          "That username or email is already registered."
       });
     }
 
-    const passwordHash = await bcrypt.hash(password, 12);
+    const passwordHash =
+      await bcrypt.hash(password, 12);
 
-    const result = await pool.query(
-      `
-      INSERT INTO players
-        (email, password_hash, username, controls)
-      VALUES
-        ($1, $2, $3, $4)
-      RETURNING id, email, username, controls
-      `,
-      [
-        email.trim().toLowerCase(),
-        passwordHash,
-        username.trim(),
-        JSON.stringify(DEFAULT_CONTROLS)
-      ]
-    );
+    const result =
+      await pool.query(
+        `
+        INSERT INTO players
+          (username, email, password_hash, controls)
+        VALUES
+          ($1, $2, $3, $4)
+        RETURNING
+          id,
+          username,
+          email,
+          controls
+        `,
+        [
+          username,
+          email,
+          passwordHash,
+          JSON.stringify({})
+        ]
+      );
 
-    const player = result.rows[0];
+    const player =
+      result.rows[0];
 
-    const token = createToken(player);
+    req.session.playerId =
+      player.id;
 
-    res.cookie("nova_session", token, {
-      httpOnly: true,
-      secure: process.env.NODE_ENV === "production",
-      sameSite: "lax",
-      maxAge: 30 * 24 * 60 * 60 * 1000
-    });
+    req.session.save(() => {
 
-    res.json({
-      success: true,
-      player: {
-        id: player.id,
-        username: player.username,
-        controls: player.controls
-      }
+      res.status(201).json({
+        player: cleanPlayer(player)
+      });
+
     });
 
   } catch (error) {
-    console.error(error);
+
+    console.error(
+      "Register error:",
+      error
+    );
 
     res.status(500).json({
-      error: "Could not create account."
+      error:
+        "Server error while creating account."
     });
   }
 });
@@ -193,60 +234,74 @@ app.post("/api/register", async (req, res) => {
 ========================= */
 
 app.post("/api/login", async (req, res) => {
-  try {
-    const { email, password } = req.body;
 
-    const result = await pool.query(
-      `
-      SELECT *
-      FROM players
-      WHERE LOWER(email) = LOWER($1)
-      `,
-      [email?.trim()]
-    );
+  try {
+
+    const email =
+      String(req.body.email || "")
+        .trim()
+        .toLowerCase();
+
+    const password =
+      String(req.body.password || "");
+
+    const result =
+      await pool.query(
+        `
+        SELECT *
+        FROM players
+        WHERE LOWER(email) = LOWER($1)
+        LIMIT 1
+        `,
+        [email]
+      );
 
     if (result.rows.length === 0) {
+
       return res.status(401).json({
-        error: "Incorrect email or password."
+        error:
+          "Incorrect email or password."
       });
     }
 
-    const player = result.rows[0];
+    const player =
+      result.rows[0];
 
-    const valid = await bcrypt.compare(
-      password,
-      player.password_hash
-    );
+    const correct =
+      await bcrypt.compare(
+        password,
+        player.password_hash
+      );
 
-    if (!valid) {
+    if (!correct) {
+
       return res.status(401).json({
-        error: "Incorrect email or password."
+        error:
+          "Incorrect email or password."
       });
     }
 
-    const token = createToken(player);
+    req.session.playerId =
+      player.id;
 
-    res.cookie("nova_session", token, {
-      httpOnly: true,
-      secure: process.env.NODE_ENV === "production",
-      sameSite: "lax",
-      maxAge: 30 * 24 * 60 * 60 * 1000
-    });
+    req.session.save(() => {
 
-    res.json({
-      success: true,
-      player: {
-        id: player.id,
-        username: player.username,
-        controls: player.controls
-      }
+      res.json({
+        player: cleanPlayer(player)
+      });
+
     });
 
   } catch (error) {
-    console.error(error);
+
+    console.error(
+      "Login error:",
+      error
+    );
 
     res.status(500).json({
-      error: "Login failed."
+      error:
+        "Server error while logging in."
     });
   }
 });
@@ -255,32 +310,54 @@ app.post("/api/login", async (req, res) => {
    CURRENT ACCOUNT
 ========================= */
 
-app.get("/api/me", authenticate, async (req, res) => {
+app.get("/api/me", async (req, res) => {
+
   try {
-    const result = await pool.query(
-      `
-      SELECT id, email, username, controls
-      FROM players
-      WHERE id = $1
-      `,
-      [req.player.id]
-    );
+
+    if (!req.session.playerId) {
+
+      return res.status(401).json({
+        error: "Not logged in."
+      });
+    }
+
+    const result =
+      await pool.query(
+        `
+        SELECT
+          id,
+          username,
+          email,
+          controls
+        FROM players
+        WHERE id = $1
+        `,
+        [req.session.playerId]
+      );
 
     if (result.rows.length === 0) {
-      return res.status(404).json({
+
+      req.session.destroy(() => {});
+
+      return res.status(401).json({
         error: "Account not found."
       });
     }
 
     res.json({
-      player: result.rows[0]
+      player:
+        cleanPlayer(result.rows[0])
     });
 
   } catch (error) {
-    console.error(error);
+
+    console.error(
+      "Session error:",
+      error
+    );
 
     res.status(500).json({
-      error: "Could not load account."
+      error: "Server error."
     });
   }
 });
@@ -290,10 +367,15 @@ app.get("/api/me", authenticate, async (req, res) => {
 ========================= */
 
 app.post("/api/logout", (req, res) => {
-  res.clearCookie("nova_session");
 
-  res.json({
-    success: true
+  req.session.destroy(() => {
+
+    res.clearCookie("connect.sid");
+
+    res.json({
+      success: true
+    });
+
   });
 });
 
@@ -301,11 +383,25 @@ app.post("/api/logout", (req, res) => {
    SAVE CONTROLS
 ========================= */
 
-app.put("/api/controls", authenticate, async (req, res) => {
-  try {
-    const controls = req.body.controls;
+app.put("/api/controls", async (req, res) => {
 
-    if (!controls || typeof controls !== "object") {
+  try {
+
+    if (!req.session.playerId) {
+
+      return res.status(401).json({
+        error: "Not logged in."
+      });
+    }
+
+    const controls =
+      req.body.controls;
+
+    if (
+      !controls ||
+      typeof controls !== "object"
+    ) {
+
       return res.status(400).json({
         error: "Invalid controls."
       });
@@ -319,29 +415,46 @@ app.put("/api/controls", authenticate, async (req, res) => {
       `,
       [
         JSON.stringify(controls),
-        req.player.id
+        req.session.playerId
       ]
     );
 
     res.json({
-      success: true,
-      controls
+      success: true
     });
 
   } catch (error) {
-    console.error(error);
+
+    console.error(
+      "Control save error:",
+      error
+    );
 
     res.status(500).json({
-      error: "Could not save controls."
+      error:
+        "Could not save controls."
     });
   }
 });
 
 /* =========================
-   ONLINE PLAYERS
+   ACTIVE PLAYERS
 ========================= */
 
 const players = new Map();
+
+/*
+  players:
+  socket.id -> {
+    id,
+    username,
+    x,
+    y,
+    z,
+    rotationY,
+    state
+  }
+*/
 
 /* =========================
    SOCKET.IO
@@ -349,160 +462,386 @@ const players = new Map();
 
 io.on("connection", socket => {
 
-  console.log("Player connected:", socket.id);
+  console.log(
+    "Socket connected:",
+    socket.id
+  );
 
-  socket.on("player:join", data => {
+  socket.on(
+    "player:join",
+    async data => {
 
-    if (!data || !data.username) {
-      return;
+      try {
+
+        if (!socket.request.session) {
+          return;
+        }
+
+        if (!socket.request.session.playerId) {
+          return;
+        }
+
+        const result =
+          await pool.query(
+            `
+            SELECT
+              id,
+              username
+            FROM players
+            WHERE id = $1
+            `,
+            [socket.request.session.playerId]
+          );
+
+        if (result.rows.length === 0) {
+          return;
+        }
+
+        const databasePlayer =
+          result.rows[0];
+
+        const player = {
+
+          id: socket.id,
+
+          accountId:
+            databasePlayer.id,
+
+          username:
+            databasePlayer.username,
+
+          x: 0,
+
+          y: 1,
+
+          z: 10,
+
+          rotationY: 0,
+
+          state: "normal"
+        };
+
+        players.set(
+          socket.id,
+          player
+        );
+
+        const existingPlayers =
+          Array.from(
+            players.values()
+          ).filter(
+            p =>
+              p.id !== socket.id
+          );
+
+        socket.emit(
+          "players:list",
+          {
+            players:
+              existingPlayers
+          }
+        );
+
+        socket.broadcast.emit(
+          "player:joined",
+          player
+        );
+
+        updatePlayerCount();
+
+        console.log(
+          `${player.username} joined the game.`
+        );
+
+      } catch (error) {
+
+        console.error(
+          "Player join error:",
+          error
+        );
+      }
     }
-
-    players.set(socket.id, {
-      id: socket.id,
-      username: String(data.username).slice(0, 20),
-
-      x: 0,
-      y: 1,
-      z: 0,
-
-      rotationY: 0,
-
-      state: "normal",
-
-      character: "default",
-      cosmetic: "default"
-    });
-
-    socket.emit("players:list", {
-      players: Array.from(players.values())
-    });
-
-    socket.broadcast.emit(
-      "player:joined",
-      players.get(socket.id)
-    );
-  });
-
-  socket.on("player:update", data => {
-
-    const player = players.get(socket.id);
-
-    if (!player) {
-      return;
-    }
-
-    if (typeof data.x === "number") {
-      player.x = data.x;
-    }
-
-    if (typeof data.y === "number") {
-      player.y = data.y;
-    }
-
-    if (typeof data.z === "number") {
-      player.z = data.z;
-    }
-
-    if (typeof data.rotationY === "number") {
-      player.rotationY = data.rotationY;
-    }
-
-    if (typeof data.state === "string") {
-      player.state = data.state;
-    }
-
-    socket.broadcast.emit(
-      "player:update",
-      player
-    );
-  });
+  );
 
   /* =========================
-     REAL-TIME CHAT
-  ========================= */
+     MOVEMENT
+  ========================== */
 
-  socket.on("chat:send", message => {
+  socket.on(
+    "player:update",
+    data => {
 
-    const player = players.get(socket.id);
+      const player =
+        players.get(socket.id);
 
-    if (!player) {
-      return;
+      if (!player) {
+        return;
+      }
+
+      if (
+        typeof data.x !== "number" ||
+        typeof data.y !== "number" ||
+        typeof data.z !== "number"
+      ) {
+        return;
+      }
+
+      /*
+        Basic server-side limits.
+        This prevents obviously broken
+        coordinates from being sent.
+      */
+
+      const maxCoordinate = 1000;
+
+      player.x =
+        Math.max(
+          -maxCoordinate,
+          Math.min(
+            maxCoordinate,
+            data.x
+          )
+        );
+
+      player.y =
+        Math.max(
+          0,
+          Math.min(
+            100,
+            data.y
+          )
+        );
+
+      player.z =
+        Math.max(
+          -maxCoordinate,
+          Math.min(
+            maxCoordinate,
+            data.z
+          )
+        );
+
+      if (
+        typeof data.rotationY ===
+        "number"
+      ) {
+
+        player.rotationY =
+          data.rotationY;
+      }
+
+      if (
+        typeof data.state ===
+        "string"
+      ) {
+
+        const allowedStates = [
+          "normal",
+          "sprinting",
+          "sliding",
+          "sneaking"
+        ];
+
+        if (
+          allowedStates.includes(
+            data.state
+          )
+        ) {
+
+          player.state =
+            data.state;
+        }
+      }
+
+      socket.broadcast.emit(
+        "player:update",
+        player
+      );
     }
+  );
 
-    if (typeof message !== "string") {
-      return;
+  /* =========================
+     CHAT
+  ========================== */
+
+  socket.on(
+    "chat:send",
+    message => {
+
+      const player =
+        players.get(socket.id);
+
+      if (!player) {
+        return;
+      }
+
+      if (
+        typeof message !== "string"
+      ) {
+        return;
+      }
+
+      message =
+        message
+          .replace(/\s+/g, " ")
+          .trim();
+
+      if (!message) {
+        return;
+      }
+
+      /*
+        Prevent extremely large
+        chat messages.
+      */
+
+      message =
+        message.substring(
+          0,
+          200
+        );
+
+      io.emit(
+        "chat:message",
+        {
+          username:
+            player.username,
+
+          message
+        }
+      );
     }
-
-    const cleanMessage = message
-      .trim()
-      .slice(0, 200);
-
-    if (!cleanMessage) {
-      return;
-    }
-
-    io.emit("chat:message", {
-      username: player.username,
-      message: cleanMessage,
-      time: Date.now()
-    });
-  });
+  );
 
   /* =========================
      DISCONNECT
-  ========================= */
+  ========================== */
 
-  socket.on("disconnect", () => {
+  socket.on(
+    "disconnect",
+    () => {
 
-    console.log("Player disconnected:", socket.id);
+      const player =
+        players.get(socket.id);
 
-    if (players.has(socket.id)) {
+      if (player) {
 
-      players.delete(socket.id);
+        console.log(
+          `${player.username} left the game.`
+        );
 
-      io.emit(
-        "player:left",
+        players.delete(
+          socket.id
+        );
+
+        socket.broadcast.emit(
+          "player:left",
+          socket.id
+        );
+
+        updatePlayerCount();
+      }
+
+      console.log(
+        "Socket disconnected:",
         socket.id
       );
     }
-  });
+  );
 });
 
 /* =========================
-   HEALTH CHECK
+   PLAYER COUNT
 ========================= */
 
-app.get("/api/health", (req, res) => {
-  res.json({
-    online: true,
-    players: players.size
+function updatePlayerCount() {
+
+  io.emit(
+    "players:count",
+    players.size
+  );
+}
+
+/* =========================
+   SOCKET SESSION BRIDGE
+========================= */
+
+const sessionMiddleware =
+  session({
+    store: new PgSession({
+      pool,
+      tableName: "user_sessions",
+      createTableIfMissing: true
+    }),
+
+    secret:
+      process.env.SESSION_SECRET ||
+      "CHANGE_THIS_SECRET_IN_RENDER",
+
+    resave: false,
+
+    saveUninitialized: false,
+
+    cookie: {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === "production",
+      maxAge:
+        1000 *
+        60 *
+        60 *
+        24 *
+        30
+    }
   });
+
+io.engine.use(sessionMiddleware);
+
+/* =========================
+   FALLBACK ROUTE
+========================= */
+
+app.get("*", (req, res) => {
+
+  res.sendFile(
+    path.join(
+      __dirname,
+      "public",
+      "index.html"
+    )
+  );
 });
 
 /* =========================
    START SERVER
 ========================= */
 
-setupDatabase()
-  .then(() => {
+async function start() {
+
+  try {
+
+    await setupDatabase();
 
     server.listen(
       PORT,
       "0.0.0.0",
       () => {
+
         console.log(
-          `NovaStrike server running on port ${PORT}`
+          `NovaStrike running on port ${PORT}`
         );
+
       }
     );
 
-  })
-  .catch(error => {
+  } catch (error) {
 
     console.error(
-      "Database startup failed:",
+      "Failed to start:",
       error
     );
 
     process.exit(1);
-  });
+  }
+}
+
+start();
