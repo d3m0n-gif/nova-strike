@@ -53,7 +53,7 @@ const player = {
    LOAD THREE.JS
 ========================= */
 
-async function loadThree() {
+window.loadThree = async function loadThree() {
   try {
     THREE = await import(THREE_URL);
     startGame();
