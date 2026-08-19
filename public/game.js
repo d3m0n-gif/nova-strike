@@ -1,5 +1,16 @@
 // NovaStrike 3D Client
-// Optimized multiplayer arena client
+// Multiplayer arena client
+// Controls:
+// W = forward
+// S = backward
+// A = left
+// D = right
+// R = sprint
+// Shift = slide
+// C = sneak
+// Space = jump
+// T = chat
+// Esc = close chat / pointer lock
 
 const socket = io({
   withCredentials: true
@@ -15,6 +26,7 @@ let renderer;
 let clock;
 
 let gameStarted = false;
+let chatOpen = false;
 
 const remotePlayers = new Map();
 const keys = {};
@@ -49,41 +61,24 @@ const player = {
   sneaking: false
 };
 
-/* =========================
+/* =========================================
    LOAD THREE.JS
-========================= */
+========================================= */
 
 window.loadThree = async function loadThree() {
+  if (gameStarted) return;
+
   try {
     THREE = await import(THREE_URL);
     startGame();
   } catch (error) {
-    console.error("Failed to load Three.js:", error);
-
-    document.body.innerHTML = `
-      <div style="
-        color:white;
-        background:#101522;
-        height:100vh;
-        display:flex;
-        align-items:center;
-        justify-content:center;
-        font-family:Arial;
-        text-align:center;
-      ">
-        <div>
-          <h1>NovaStrike</h1>
-          <p>Could not load the game engine.</p>
-          <p>Check your internet connection and refresh.</p>
-        </div>
-      </div>
-    `;
+    console.error("Could not load Three.js:", error);
   }
-}
+};
 
-/* =========================
+/* =========================================
    START GAME
-========================= */
+========================================= */
 
 function startGame() {
   if (gameStarted) return;
@@ -92,20 +87,23 @@ function startGame() {
 
   scene = new THREE.Scene();
 
-  scene.background = new THREE.Color(0x101522);
+  scene.background =
+    new THREE.Color(0x101522);
 
-  scene.fog = new THREE.Fog(
-    0x101522,
-    80,
-    500
-  );
+  scene.fog =
+    new THREE.Fog(
+      0x101522,
+      80,
+      500
+    );
 
-  camera = new THREE.PerspectiveCamera(
-    75,
-    window.innerWidth / window.innerHeight,
-    0.1,
-    1000
-  );
+  camera =
+    new THREE.PerspectiveCamera(
+      75,
+      window.innerWidth / window.innerHeight,
+      0.1,
+      1500
+    );
 
   camera.position.set(
     player.x,
@@ -113,13 +111,13 @@ function startGame() {
     player.z
   );
 
-  renderer = new THREE.WebGLRenderer({
-    antialias: true,
-    powerPreference: "high-performance"
-  });
+  renderer =
+    new THREE.WebGLRenderer({
+      antialias: true
+    });
 
   renderer.setPixelRatio(
-    Math.min(window.devicePixelRatio || 1, 1.5)
+    Math.min(window.devicePixelRatio, 1.5)
   );
 
   renderer.setSize(
@@ -127,19 +125,7 @@ function startGame() {
     window.innerHeight
   );
 
-  renderer.outputColorSpace =
-    THREE.SRGBColorSpace;
-
   renderer.shadowMap.enabled = true;
-  renderer.shadowMap.type =
-    THREE.PCFSoftShadowMap;
-
-  renderer.domElement.style.position = "fixed";
-  renderer.domElement.style.left = "0";
-  renderer.domElement.style.top = "0";
-  renderer.domElement.style.width = "100%";
-  renderer.domElement.style.height = "100%";
-  renderer.domElement.style.zIndex = "0";
 
   document.body.appendChild(
     renderer.domElement
@@ -160,22 +146,23 @@ function startGame() {
   animate();
 }
 
-/* =========================
+/* =========================================
    WORLD
-========================= */
+========================================= */
 
 function createWorld() {
-  const sky = new THREE.Mesh(
-    new THREE.SphereGeometry(
-      500,
-      24,
-      16
-    ),
-    new THREE.MeshBasicMaterial({
-      color: 0x172033,
-      side: THREE.BackSide
-    })
-  );
+  const sky =
+    new THREE.Mesh(
+      new THREE.SphereGeometry(
+        700,
+        32,
+        32
+      ),
+      new THREE.MeshBasicMaterial({
+        color: 0x172033,
+        side: THREE.BackSide
+      })
+    );
 
   scene.add(sky);
 
@@ -183,7 +170,7 @@ function createWorld() {
     new THREE.HemisphereLight(
       0xbfd7ff,
       0x18202b,
-      1.8
+      2
     );
 
   scene.add(ambient);
@@ -202,15 +189,12 @@ function createWorld() {
 
   sun.castShadow = true;
 
-  sun.shadow.mapSize.width = 1024;
-  sun.shadow.mapSize.height = 1024;
-
-  sun.shadow.camera.left = -250;
-  sun.shadow.camera.right = 250;
-  sun.shadow.camera.top = 250;
-  sun.shadow.camera.bottom = -250;
+  sun.shadow.mapSize.width = 2048;
+  sun.shadow.mapSize.height = 2048;
 
   scene.add(sun);
+
+  /* Large ground */
 
   const ground =
     new THREE.Mesh(
@@ -226,9 +210,12 @@ function createWorld() {
     );
 
   ground.position.y = -1;
+
   ground.receiveShadow = true;
 
   scene.add(ground);
+
+  /* Grid */
 
   const grid =
     new THREE.GridHelper(
@@ -242,145 +229,107 @@ function createWorld() {
 
   scene.add(grid);
 
+  /* Buildings */
+
   createBuilding(
-    -70,
-    10,
     -65,
-    55,
-    20,
-    35
-  );
-
-  createBuilding(
-    75,
-    12,
-    -60,
-    45,
-    24,
-    45
-  );
-
-  createBuilding(
-    -75,
     8,
-    70,
-    45,
+    -55,
+    55,
     16,
-    45
-  );
-
-  createBuilding(
-    70,
-    7,
-    70,
-    55,
-    14,
     35
   );
 
   createBuilding(
-    0,
-    18,
-    0,
-    30,
-    36,
-    30
+    65,
+    10,
+    -50,
+    45,
+    20,
+    50
   );
 
-  createPlatform(
-    -35,
+  createBuilding(
+    -70,
+    7,
+    60,
+    45,
+    14,
+    40
+  );
+
+  createBuilding(
+    65,
     6,
-    -10,
+    65,
+    50,
+    12,
+    35
+  );
+
+  /* Central tower */
+
+  createBuilding(
+    0,
+    15,
+    0,
+    28,
+    30,
+    28
+  );
+
+  /* Platforms */
+
+  createPlatform(
+    -30,
+    5,
+    5,
     35,
     2,
     18
   );
 
   createPlatform(
-    40,
-    5,
+    35,
+    4,
     20,
     35,
     2,
-    18
+    15
   );
 
   createPlatform(
-    -10,
-    8,
+    0,
+    7,
     -70,
     40,
     2,
     18
   );
 
-  createPlatform(
-    10,
-    6,
-    75,
-    35,
-    2,
-    18
-  );
+  /* Cover */
 
   for (let i = 0; i < 45; i++) {
     const x =
-      Math.random() * 340 - 170;
+      Math.random() * 300 - 150;
 
     const z =
-      Math.random() * 340 - 170;
+      Math.random() * 300 - 150;
 
     if (
-      Math.abs(x) < 25 &&
-      Math.abs(z) < 25
+      Math.abs(x) < 20 &&
+      Math.abs(z) < 20
     ) {
       continue;
     }
 
     createCover(x, z);
   }
-
-  createWall(0, 3, -195, 400, 6, 5);
-  createWall(0, 3, 195, 400, 6, 5);
-  createWall(-195, 3, 0, 5, 6, 400);
-  createWall(195, 3, 0, 5, 6, 400);
 }
 
-/* =========================
-   WALL
-========================= */
-
-function createWall(
-  x,
-  y,
-  z,
-  width,
-  height,
-  depth
-) {
-  const wall =
-    new THREE.Mesh(
-      new THREE.BoxGeometry(
-        width,
-        height,
-        depth
-      ),
-      new THREE.MeshStandardMaterial({
-        color: 0x202633
-      })
-    );
-
-  wall.position.set(x, y, z);
-
-  wall.castShadow = true;
-  wall.receiveShadow = true;
-
-  scene.add(wall);
-}
-
-/* =========================
-   BUILDING
-========================= */
+/* =========================================
+   BUILDINGS
+========================================= */
 
 function createBuilding(
   x,
@@ -437,9 +386,9 @@ function createBuilding(
   scene.add(roof);
 }
 
-/* =========================
+/* =========================================
    PLATFORM
-========================= */
+========================================= */
 
 function createPlatform(
   x,
@@ -473,9 +422,9 @@ function createPlatform(
   scene.add(platform);
 }
 
-/* =========================
+/* =========================================
    COVER
-========================= */
+========================================= */
 
 function createCover(x, z) {
   const width =
@@ -511,20 +460,57 @@ function createCover(x, z) {
   scene.add(cover);
 }
 
-/* =========================
+/* =========================================
    INPUT
-========================= */
+========================================= */
 
 function setupInput() {
   window.addEventListener(
     "keydown",
     event => {
+      /*
+       * T opens chat.
+       */
+
+      if (
+        event.code === "KeyT" &&
+        !chatOpen
+      ) {
+        openChat();
+        event.preventDefault();
+        return;
+      }
+
+      /*
+       * If chat is open, don't let
+       * game controls activate.
+       */
+
+      if (chatOpen) {
+        return;
+      }
+
       keys[event.code] = true;
 
       if (
-        event.code === "Space"
+        event.code === controls.jump
       ) {
         jump();
+        event.preventDefault();
+      }
+
+      /*
+       * Escape exits pointer lock.
+       */
+
+      if (
+        event.code === "Escape"
+      ) {
+        if (
+          document.pointerLockElement
+        ) {
+          document.exitPointerLock();
+        }
       }
     }
   );
@@ -543,6 +529,10 @@ function setupInput() {
         document.pointerLockElement !==
         renderer.domElement
       ) {
+        return;
+      }
+
+      if (chatOpen) {
         return;
       }
 
@@ -566,39 +556,93 @@ function setupInput() {
   renderer.domElement.addEventListener(
     "click",
     () => {
-      if (
-        document.pointerLockElement !==
-        renderer.domElement
-      ) {
-        renderer.domElement.requestPointerLock();
-      }
+      if (chatOpen) return;
+
+      renderer.domElement.requestPointerLock();
     }
   );
 }
 
-/* =========================
+/* =========================================
+   CHAT OPEN
+========================================= */
+
+function openChat() {
+  const input =
+    document.getElementById(
+      "chat-input"
+    );
+
+  if (!input) return;
+
+  chatOpen = true;
+
+  input.style.display = "block";
+
+  input.value = "";
+
+  input.focus();
+
+  if (
+    document.pointerLockElement
+  ) {
+    document.exitPointerLock();
+  }
+}
+
+/* =========================================
+   CHAT CLOSE
+========================================= */
+
+function closeChat() {
+  const input =
+    document.getElementById(
+      "chat-input"
+    );
+
+  if (!input) return;
+
+  chatOpen = false;
+
+  input.value = "";
+
+  input.style.display = "none";
+
+  input.blur();
+}
+
+/* =========================================
    MOVEMENT
-========================= */
+========================================= */
 
 function updateMovement(delta) {
-  let moveX = 0;
-  let moveZ = 0;
+  /*
+   * W/S = forward/backward
+   * A/D = left/right
+   */
 
-  if (keys[controls.forward])
-    moveZ -= 1;
+  let forward = 0;
+  let strafe = 0;
 
-  if (keys[controls.backward])
-    moveZ += 1;
+  if (keys[controls.forward]) {
+    forward += 1;
+  }
 
-  if (keys[controls.left])
-    moveX -= 1;
+  if (keys[controls.backward]) {
+    forward -= 1;
+  }
 
-  if (keys[controls.right])
-    moveX += 1;
+  if (keys[controls.left]) {
+    strafe -= 1;
+  }
+
+  if (keys[controls.right]) {
+    strafe += 1;
+  }
 
   const moving =
-    moveX !== 0 ||
-    moveZ !== 0;
+    forward !== 0 ||
+    strafe !== 0;
 
   const sprinting =
     keys[controls.sprint] &&
@@ -608,6 +652,10 @@ function updateMovement(delta) {
   player.sneaking =
     keys[controls.sneak] &&
     moving;
+
+  /*
+   * Slide
+   */
 
   if (
     keys[controls.slide] &&
@@ -622,40 +670,60 @@ function updateMovement(delta) {
     }, 500);
   }
 
-  let speed = player.speed;
+  let speed =
+    player.speed;
 
-  if (sprinting)
-    speed = player.sprintSpeed;
+  if (sprinting) {
+    speed =
+      player.sprintSpeed;
+  }
 
-  if (player.sneaking)
-    speed = player.sneakSpeed;
+  if (player.sneaking) {
+    speed =
+      player.sneakSpeed;
+  }
 
-  if (player.sliding)
-    speed = player.sprintSpeed * 1.35;
+  if (player.sliding) {
+    speed =
+      player.sprintSpeed * 1.35;
+  }
 
   if (moving) {
     const length =
       Math.sqrt(
-        moveX * moveX +
-        moveZ * moveZ
+        forward * forward +
+        strafe * strafe
       );
 
-    moveX /= length;
-    moveZ /= length;
+    forward /= length;
+    strafe /= length;
 
-    const sin =
-      Math.sin(player.yaw);
+    /*
+     * Camera forward vector.
+     *
+     * W moves exactly where
+     * the player is looking.
+     */
 
-    const cos =
+    const forwardX =
+      -Math.sin(player.yaw);
+
+    const forwardZ =
+      -Math.cos(player.yaw);
+
+    const rightX =
       Math.cos(player.yaw);
 
+    const rightZ =
+      -Math.sin(player.yaw);
+
     const worldX =
-      moveX * cos -
-      moveZ * sin;
+      forwardX * forward +
+      rightX * strafe;
 
     const worldZ =
-      moveX * sin +
-      moveZ * cos;
+      forwardZ * forward +
+      rightZ * strafe;
 
     player.x +=
       worldX * speed * delta;
@@ -663,6 +731,8 @@ function updateMovement(delta) {
     player.z +=
       worldZ * speed * delta;
   }
+
+  /* Gravity */
 
   player.velocityY -=
     24 * delta;
@@ -677,6 +747,11 @@ function updateMovement(delta) {
   } else {
     player.grounded = false;
   }
+
+  /*
+   * Keep player inside
+   * the large arena.
+   */
 
   player.x =
     Math.max(
@@ -696,6 +771,10 @@ function updateMovement(delta) {
       )
     );
 
+  /*
+   * Camera position.
+   */
+
   camera.position.set(
     player.x,
     player.y -
@@ -711,6 +790,10 @@ function updateMovement(delta) {
 
   camera.rotation.x =
     player.pitch;
+
+  /*
+   * Send player movement.
+   */
 
   if (socket.connected) {
     socket.emit(
@@ -734,21 +817,22 @@ function updateMovement(delta) {
   }
 }
 
-/* =========================
+/* =========================================
    JUMP
-========================= */
+========================================= */
 
 function jump() {
-  if (!player.grounded)
+  if (!player.grounded) {
     return;
+  }
 
   player.velocityY = 9;
   player.grounded = false;
 }
 
-/* =========================
+/* =========================================
    MULTIPLAYER
-========================= */
+========================================= */
 
 function connectPlayer() {
   socket.on(
@@ -822,6 +906,8 @@ function connectPlayer() {
   socket.on(
     "chat:message",
     data => {
+      if (!data) return;
+
       addChatMessage(
         data.username,
         data.message
@@ -830,9 +916,9 @@ function connectPlayer() {
   );
 }
 
-/* =========================
+/* =========================================
    REMOTE PLAYER
-========================= */
+========================================= */
 
 function createRemotePlayer(p) {
   if (
@@ -843,6 +929,10 @@ function createRemotePlayer(p) {
 
   const group =
     new THREE.Group();
+
+  /*
+   * Body
+   */
 
   const body =
     new THREE.Mesh(
@@ -857,9 +947,14 @@ function createRemotePlayer(p) {
     );
 
   body.position.y = 0.75;
+
   body.castShadow = true;
 
   group.add(body);
+
+  /*
+   * Head
+   */
 
   const head =
     new THREE.Mesh(
@@ -874,9 +969,14 @@ function createRemotePlayer(p) {
     );
 
   head.position.y = 1.8;
+
   head.castShadow = true;
 
   group.add(head);
+
+  /*
+   * Name
+   */
 
   const name =
     createNameLabel(
@@ -899,18 +999,20 @@ function createRemotePlayer(p) {
     p.id,
     {
       object: group,
+
       targetX: p.x,
       targetY: p.y - 2,
       targetZ: p.z,
+
       targetRotation:
         p.rotationY || 0
     }
   );
 }
 
-/* =========================
+/* =========================================
    NAME LABEL
-========================= */
+========================================= */
 
 function createNameLabel(text) {
   const canvas =
@@ -923,6 +1025,13 @@ function createNameLabel(text) {
 
   const context =
     canvas.getContext("2d");
+
+  context.clearRect(
+    0,
+    0,
+    canvas.width,
+    canvas.height
+  );
 
   context.font =
     "bold 42px Arial";
@@ -975,9 +1084,9 @@ function createNameLabel(text) {
   return sprite;
 }
 
-/* =========================
+/* =========================================
    UPDATE REMOTE PLAYER
-========================= */
+========================================= */
 
 function updateRemotePlayer(p) {
   const remote =
@@ -995,16 +1104,17 @@ function updateRemotePlayer(p) {
     p.rotationY || 0;
 }
 
-/* =========================
+/* =========================================
    REMOVE REMOTE PLAYER
-========================= */
+========================================= */
 
 function removeRemotePlayer(id) {
   const remote =
     remotePlayers.get(id);
 
-  if (!remote)
+  if (!remote) {
     return;
+  }
 
   scene.remove(
     remote.object
@@ -1013,64 +1123,59 @@ function removeRemotePlayer(id) {
   remotePlayers.delete(id);
 }
 
-/* =========================
-   INTERPOLATION
-========================= */
+/* =========================================
+   REMOTE PLAYER SMOOTHING
+========================================= */
 
 function updateRemotePlayers() {
   for (
     const remote of
     remotePlayers.values()
   ) {
-    const object =
-      remote.object;
-
-    object.position.x +=
+    remote.object.position.x +=
       (
         remote.targetX -
-        object.position.x
+        remote.object.position.x
       ) * 0.25;
 
-    object.position.y +=
+    remote.object.position.y +=
       (
         remote.targetY -
-        object.position.y
+        remote.object.position.y
       ) * 0.25;
 
-    object.position.z +=
+    remote.object.position.z +=
       (
         remote.targetZ -
-        object.position.z
+        remote.object.position.z
       ) * 0.25;
 
-    let rotationDifference =
+    /*
+     * Smooth rotation.
+     */
+
+    let difference =
       remote.targetRotation -
-      object.rotation.y;
+      remote.object.rotation.y;
 
-    rotationDifference =
-      Math.atan2(
-        Math.sin(rotationDifference),
-        Math.cos(rotationDifference)
-      );
+    while (difference > Math.PI) {
+      difference -= Math.PI * 2;
+    }
 
-    object.rotation.y +=
-      rotationDifference * 0.25;
+    while (difference < -Math.PI) {
+      difference += Math.PI * 2;
+    }
+
+    remote.object.rotation.y +=
+      difference * 0.25;
   }
 }
 
-/* =========================
+/* =========================================
    HUD
-========================= */
+========================================= */
 
 function createHUD() {
-  if (
-    document.getElementById(
-      "nova-hud"
-    )
-  ) {
-    return;
-  }
-
   const hud =
     document.createElement(
       "div"
@@ -1087,62 +1192,124 @@ function createHUD() {
     </div>
 
     <div id="chat-box">
+
       <div id="chat-messages"></div>
 
       <input
         id="chat-input"
         maxlength="200"
-        placeholder="Press Enter to chat..."
-      />
+        autocomplete="off"
+        placeholder="Press T to chat..."
+        style="display:none;"
+      >
+
     </div>
 
     <div id="controls-help">
+
       W A S D — MOVE<br>
       R — SPRINT<br>
       SHIFT — SLIDE<br>
       C — SNEAK<br>
       SPACE — JUMP<br>
-      ESC — SETTINGS
+      T — CHAT<br>
+      ESC — RELEASE MOUSE
+
     </div>
   `;
 
-  document.body.appendChild(
-    hud
-  );
+  document.body.appendChild(hud);
 
   const chatInput =
     document.getElementById(
       "chat-input"
     );
 
+  /*
+   * Chat input behavior.
+   */
+
   chatInput.addEventListener(
     "keydown",
     event => {
       if (
-        event.key !== "Enter"
+        event.key === "Enter"
       ) {
+        const message =
+          chatInput.value.trim();
+
+        if (!message) {
+          closeChat();
+          return;
+        }
+
+        /*
+         * No commands.
+         */
+
+        if (
+          message.startsWith("/")
+        ) {
+          addChatMessage(
+            "SYSTEM",
+            "Commands are disabled."
+          );
+
+          chatInput.value = "";
+
+          return;
+        }
+
+        socket.emit(
+          "chat:send",
+          message
+        );
+
+        chatInput.value = "";
+
+        closeChat();
+
+        /*
+         * Give mouse control
+         * back to the game.
+         */
+
+        setTimeout(() => {
+          if (
+            renderer &&
+            renderer.domElement
+          ) {
+            renderer.domElement.requestPointerLock();
+          }
+        }, 50);
+
         return;
       }
 
-      const message =
-        chatInput.value.trim();
+      /*
+       * Escape closes chat.
+       */
 
-      if (!message)
+      if (
+        event.key === "Escape"
+      ) {
+        closeChat();
         return;
+      }
 
-      socket.emit(
-        "chat:send",
-        message
-      );
+      /*
+       * Prevent game movement
+       * while typing.
+       */
 
-      chatInput.value = "";
+      event.stopPropagation();
     }
   );
 }
 
-/* =========================
+/* =========================================
    CHAT
-========================= */
+========================================= */
 
 function addChatMessage(
   username,
@@ -1153,8 +1320,9 @@ function addChatMessage(
       "chat-messages"
     );
 
-  if (!container)
+  if (!container) {
     return;
+  }
 
   const line =
     document.createElement(
@@ -1164,17 +1332,22 @@ function addChatMessage(
   line.className =
     "chat-line";
 
+  /*
+   * Never use raw HTML from
+   * player messages.
+   */
+
   const name =
     document.createElement(
       "strong"
     );
 
   name.textContent =
-    `${username}: `;
+    `${username}:`;
 
   const text =
     document.createTextNode(
-      message
+      ` ${message}`
     );
 
   line.appendChild(name);
@@ -1182,9 +1355,12 @@ function addChatMessage(
 
   container.appendChild(line);
 
+  /*
+   * Keep recent messages.
+   */
+
   while (
-    container.children.length >
-    8
+    container.children.length > 12
   ) {
     container.removeChild(
       container.firstChild
@@ -1195,13 +1371,14 @@ function addChatMessage(
     container.scrollHeight;
 }
 
-/* =========================
+/* =========================================
    RESIZE
-========================= */
+========================================= */
 
 function resize() {
-  if (!camera || !renderer)
+  if (!camera || !renderer) {
     return;
+  }
 
   camera.aspect =
     window.innerWidth /
@@ -1215,9 +1392,9 @@ function resize() {
   );
 }
 
-/* =========================
+/* =========================================
    GAME LOOP
-========================= */
+========================================= */
 
 function animate() {
   requestAnimationFrame(
@@ -1231,6 +1408,7 @@ function animate() {
     );
 
   updateMovement(delta);
+
   updateRemotePlayers();
 
   renderer.render(
@@ -1238,9 +1416,3 @@ function animate() {
     camera
   );
 }
-
-/* =========================
-   START
-========================= */
-
-loadThree();
