@@ -2,6 +2,7 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
+
   <meta
     name="viewport"
     content="width=device-width, initial-scale=1.0"
@@ -9,7 +10,7 @@
 
   <title>NovaStrike</title>
 
-  <link rel="stylesheet" href="style.css">
+  <link rel="stylesheet" href="/style.css">
 </head>
 
 <body>
@@ -112,11 +113,7 @@
        GAME
   ========================== -->
 
-  <div id="game-screen">
-
-    <!-- game.js creates the 3D canvas -->
-
-  </div>
+  <div id="game-screen"></div>
 
 
   <!-- =========================
@@ -156,7 +153,7 @@
 
       <div class="control-row">
         <span>Sprint</span>
-        <button data-control="sprint">R</button>
+        <button data-control="sprint">SHIFT</button>
       </div>
 
       <div class="control-row">
@@ -192,12 +189,22 @@
 
 
   <!-- =========================
-       SCRIPTS
+       LIBRARIES
   ========================== -->
 
+  <!-- THREE.JS -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+
+  <!-- SOCKET.IO -->
   <script src="/socket.io/socket.io.js"></script>
 
-  <script type="module" src="/game.js"></script>
+  <!-- NOVASTRIKE GAME -->
+  <script src="/game.js"></script>
+
+
+  <!-- =========================
+       LOGIN / REGISTER
+  ========================== -->
 
   <script>
 
@@ -211,27 +218,58 @@
       document.getElementById("login-form");
 
 
+    /*
+     * SHOW REGISTER
+     */
+
     document
       .getElementById("show-register")
       .addEventListener("click", () => {
 
         loginForm.style.display = "none";
+
         registerForm.style.display = "block";
 
       });
 
+
+    /*
+     * SHOW LOGIN
+     */
 
     document
       .getElementById("show-login")
       .addEventListener("click", () => {
 
         registerForm.style.display = "none";
+
         loginForm.style.display = "block";
 
       });
 
 
-    /* LOGIN */
+    /*
+     * START GAME
+     */
+
+    function startNovaStrike() {
+
+      authScreen.style.display = "none";
+
+      if (
+        typeof window.loadThree === "function"
+      ) {
+
+        window.loadThree();
+
+      }
+
+    }
+
+
+    /*
+     * LOGIN
+     */
 
     document
       .getElementById("login-button")
@@ -240,7 +278,7 @@
         const email =
           document.getElementById(
             "login-email"
-          ).value;
+          ).value.trim();
 
         const password =
           document.getElementById(
@@ -253,6 +291,7 @@
           );
 
         error.textContent = "";
+
 
         try {
 
@@ -276,27 +315,28 @@
               }
             );
 
+
           const data =
             await response.json();
 
+
           if (!response.ok) {
+
             error.textContent =
               data.error ||
               "Login failed.";
+
             return;
+
           }
 
-          authScreen.style.display =
-            "none";
 
-          if (
-            typeof window.loadThree ===
-            "function"
-          ) {
-            window.loadThree();
-          }
+          startNovaStrike();
+
 
         } catch (err) {
+
+          console.error(err);
 
           error.textContent =
             "Could not connect to server.";
@@ -306,7 +346,9 @@
       });
 
 
-    /* REGISTER */
+    /*
+     * REGISTER
+     */
 
     document
       .getElementById("register-button")
@@ -315,17 +357,18 @@
         const username =
           document.getElementById(
             "register-username"
-          ).value;
+          ).value.trim();
 
         const email =
           document.getElementById(
             "register-email"
-          ).value;
+          ).value.trim();
 
         const password =
           document.getElementById(
             "register-password"
           ).value;
+
 
         const error =
           document.getElementById(
@@ -333,6 +376,7 @@
           );
 
         error.textContent = "";
+
 
         try {
 
@@ -357,27 +401,28 @@
               }
             );
 
+
           const data =
             await response.json();
 
+
           if (!response.ok) {
+
             error.textContent =
               data.error ||
               "Registration failed.";
+
             return;
+
           }
 
-          authScreen.style.display =
-            "none";
 
-          if (
-            typeof window.loadThree ===
-            "function"
-          ) {
-            window.loadThree();
-          }
+          startNovaStrike();
+
 
         } catch (err) {
+
+          console.error(err);
 
           error.textContent =
             "Could not connect to server.";
