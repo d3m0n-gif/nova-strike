@@ -10,13 +10,6 @@ const { Server } = require("socket.io");
 const app = express();
 const server = http.createServer(app);
 
-const io = new Server(server, {
-  cors: {
-    origin: true,
-    credentials: true
-  }
-});
-
 const PORT = process.env.PORT || 10000;
 
 /* =========================
@@ -36,36 +29,58 @@ const pool = new Pool({
 });
 
 /* =========================
+   SESSION
+========================= */
+
+const sessionMiddleware = session({
+  store: new PgSession({
+    pool,
+    tableName: "user_sessions",
+    createTableIfMissing: true
+  }),
+
+  secret:
+    process.env.SESSION_SECRET ||
+    "CHANGE_THIS_SECRET_IN_RENDER",
+
+  resave: false,
+
+  saveUninitialized: false,
+
+  cookie: {
+    httpOnly: true,
+    secure: process.env.NODE_ENV === "production",
+    sameSite: "lax",
+    maxAge: 1000 * 60 * 60 * 24 * 30
+  }
+});
+
+/* =========================
    EXPRESS
 ========================= */
 
 app.use(express.json());
 
+app.use(sessionMiddleware);
+
 app.use(
-  session({
-    store: new PgSession({
-      pool,
-      tableName: "user_sessions",
-      createTableIfMissing: true
-    }),
-
-    secret:
-      process.env.SESSION_SECRET ||
-      "CHANGE_THIS_SECRET_IN_RENDER",
-
-    resave: false,
-
-    saveUninitialized: false,
-
-    cookie: {
-      httpOnly: true,
-      secure: process.env.NODE_ENV === "production",
-      maxAge: 1000 * 60 * 60 * 24 * 30
-    }
-  })
+  express.static(
+    path.join(__dirname, "public")
+  )
 );
 
-app.use(express.static(path.join(__dirname, "public")));
+/* =========================
+   SOCKET.IO
+========================= */
+
+const io = new Server(server, {
+  cors: {
+    origin: true,
+    credentials: true
+  }
+});
+
+io.engine.use(sessionMiddleware);
 
 /* =========================
    DATABASE SETUP
@@ -100,7 +115,6 @@ function validUsername(username) {
 }
 
 function cleanPlayer(player) {
-
   return {
     id: player.id,
     username: player.username,
@@ -135,7 +149,6 @@ app.post("/api/register", async (req, res) => {
       String(password || "");
 
     if (!validUsername(username)) {
-
       return res.status(400).json({
         error:
           "Username must be 3-20 characters and only use letters, numbers, _ or -."
@@ -143,14 +156,12 @@ app.post("/api/register", async (req, res) => {
     }
 
     if (!validEmail(email)) {
-
       return res.status(400).json({
         error: "Enter a valid email."
       });
     }
 
     if (password.length < 8) {
-
       return res.status(400).json({
         error:
           "Password must be at least 8 characters."
@@ -170,7 +181,6 @@ app.post("/api/register", async (req, res) => {
       );
 
     if (existing.rows.length > 0) {
-
       return res.status(409).json({
         error:
           "That username or email is already registered."
@@ -201,18 +211,27 @@ app.post("/api/register", async (req, res) => {
         ]
       );
 
-    const player =
-      result.rows[0];
+    const player = result.rows[0];
 
-    req.session.playerId =
-      player.id;
+    req.session.playerId = player.id;
 
-    req.session.save(() => {
+    req.session.save(err => {
+
+      if (err) {
+        console.error(
+          "Session save error:",
+          err
+        );
+
+        return res.status(500).json({
+          error:
+            "Account created, but session could not be saved."
+        });
+      }
 
       res.status(201).json({
         player: cleanPlayer(player)
       });
-
     });
 
   } catch (error) {
@@ -257,15 +276,13 @@ app.post("/api/login", async (req, res) => {
       );
 
     if (result.rows.length === 0) {
-
       return res.status(401).json({
         error:
           "Incorrect email or password."
       });
     }
 
-    const player =
-      result.rows[0];
+    const player = result.rows[0];
 
     const correct =
       await bcrypt.compare(
@@ -274,22 +291,31 @@ app.post("/api/login", async (req, res) => {
       );
 
     if (!correct) {
-
       return res.status(401).json({
         error:
           "Incorrect email or password."
       });
     }
 
-    req.session.playerId =
-      player.id;
+    req.session.playerId = player.id;
 
-    req.session.save(() => {
+    req.session.save(err => {
+
+      if (err) {
+        console.error(
+          "Session save error:",
+          err
+        );
+
+        return res.status(500).json({
+          error:
+            "Login succeeded, but session could not be saved."
+        });
+      }
 
       res.json({
         player: cleanPlayer(player)
       });
-
     });
 
   } catch (error) {
@@ -315,7 +341,6 @@ app.get("/api/me", async (req, res) => {
   try {
 
     if (!req.session.playerId) {
-
       return res.status(401).json({
         error: "Not logged in."
       });
@@ -368,14 +393,19 @@ app.get("/api/me", async (req, res) => {
 
 app.post("/api/logout", (req, res) => {
 
-  req.session.destroy(() => {
+  req.session.destroy(err => {
+
+    if (err) {
+      return res.status(500).json({
+        error: "Could not log out."
+      });
+    }
 
     res.clearCookie("connect.sid");
 
     res.json({
       success: true
     });
-
   });
 });
 
@@ -388,7 +418,6 @@ app.put("/api/controls", async (req, res) => {
   try {
 
     if (!req.session.playerId) {
-
       return res.status(401).json({
         error: "Not logged in."
       });
@@ -399,9 +428,9 @@ app.put("/api/controls", async (req, res) => {
 
     if (
       !controls ||
-      typeof controls !== "object"
+      typeof controls !== "object" ||
+      Array.isArray(controls)
     ) {
-
       return res.status(400).json({
         error: "Invalid controls."
       });
@@ -444,9 +473,9 @@ app.put("/api/controls", async (req, res) => {
 const players = new Map();
 
 /*
-  players:
   socket.id -> {
     id,
+    accountId,
     username,
     x,
     y,
@@ -467,17 +496,32 @@ io.on("connection", socket => {
     socket.id
   );
 
+  /* =========================
+     PLAYER JOIN
+  ========================== */
+
   socket.on(
     "player:join",
-    async data => {
+    async () => {
 
       try {
 
-        if (!socket.request.session) {
+        const session =
+          socket.request.session;
+
+        if (!session) {
           return;
         }
 
-        if (!socket.request.session.playerId) {
+        if (!session.playerId) {
+          socket.emit(
+            "auth:error",
+            {
+              error:
+                "You must be logged in."
+            }
+          );
+
           return;
         }
 
@@ -490,10 +534,19 @@ io.on("connection", socket => {
             FROM players
             WHERE id = $1
             `,
-            [socket.request.session.playerId]
+            [session.playerId]
           );
 
         if (result.rows.length === 0) {
+
+          socket.emit(
+            "auth:error",
+            {
+              error:
+                "Account not found."
+            }
+          );
+
           return;
         }
 
@@ -502,7 +555,8 @@ io.on("connection", socket => {
 
         const player = {
 
-          id: socket.id,
+          id:
+            socket.id,
 
           accountId:
             databasePlayer.id,
@@ -579,18 +633,13 @@ io.on("connection", socket => {
       }
 
       if (
+        !data ||
         typeof data.x !== "number" ||
         typeof data.y !== "number" ||
         typeof data.z !== "number"
       ) {
         return;
       }
-
-      /*
-        Basic server-side limits.
-        This prevents obviously broken
-        coordinates from being sent.
-      */
 
       const maxCoordinate = 1000;
 
@@ -625,7 +674,6 @@ io.on("connection", socket => {
         typeof data.rotationY ===
         "number"
       ) {
-
         player.rotationY =
           data.rotationY;
       }
@@ -647,7 +695,6 @@ io.on("connection", socket => {
             data.state
           )
         ) {
-
           player.state =
             data.state;
         }
@@ -689,11 +736,6 @@ io.on("connection", socket => {
       if (!message) {
         return;
       }
-
-      /*
-        Prevent extremely large
-        chat messages.
-      */
 
       message =
         message.substring(
@@ -763,44 +805,18 @@ function updatePlayerCount() {
 }
 
 /* =========================
-   SOCKET SESSION BRIDGE
-========================= */
-
-const sessionMiddleware =
-  session({
-    store: new PgSession({
-      pool,
-      tableName: "user_sessions",
-      createTableIfMissing: true
-    }),
-
-    secret:
-      process.env.SESSION_SECRET ||
-      "CHANGE_THIS_SECRET_IN_RENDER",
-
-    resave: false,
-
-    saveUninitialized: false,
-
-    cookie: {
-      httpOnly: true,
-      secure: process.env.NODE_ENV === "production",
-      maxAge:
-        1000 *
-        60 *
-        60 *
-        24 *
-        30
-    }
-  });
-
-io.engine.use(sessionMiddleware);
-
-/* =========================
    FALLBACK ROUTE
 ========================= */
 
-app.get("*", (req, res) => {
+/*
+  Express 5 does not accept:
+      app.get("*", ...)
+  
+  So use a normal middleware
+  for the frontend fallback.
+*/
+
+app.use((req, res) => {
 
   res.sendFile(
     path.join(
