@@ -1,20 +1,6 @@
 import * as THREE from "https://cdn.jsdelivr.net/npm/three@0.180.0/build/three.module.js";
 
-/*
-============================================================
- NOVASTRIKE
- FULL GAME.JS
-============================================================
-*/
-
-let scene;
-let camera;
-let renderer;
-let player;
-let weaponRoot;
-let weaponModel;
-let socket;
-
+let scene, camera, renderer, player, weaponRoot, weaponModel, socket;
 let gameStarted = false;
 
 let lastTime = performance.now();
@@ -37,11 +23,9 @@ let currentWeapon = "ak";
 
 let weaponRecoil = 0;
 let weaponBob = 0;
-let weaponSwayX = 0;
 let weaponSwayY = 0;
 
 let isDead = false;
-let respawnTimer = null;
 let respawnProtection = false;
 
 const keys = {};
@@ -62,7 +46,6 @@ const spawnPoints = [
 ];
 
 const weapons = {
-
     ak: {
         name: "AK-47",
         damage: 17,
@@ -96,111 +79,70 @@ const ammo = {
     pistol: 12
 };
 
-/*
-============================================================
- START
-============================================================
-*/
+/* =========================================================
+   START
+========================================================= */
 
 window.loadThree = function () {
-
     if (gameStarted) return;
 
     gameStarted = true;
-
     startGame();
 };
 
 function startGame() {
-
     createScene();
     createCamera();
     createRenderer();
     createLighting();
 
     createArena();
-
     createHUD();
-
     createLocalPlayer();
-
     createWeapon();
 
     setupControls();
-
     setupSocket();
 
-    window.addEventListener(
-        "resize",
-        resize
-    );
+    window.addEventListener("resize", resize);
 
     requestAnimationFrame(loop);
 }
 
-/*
-============================================================
- SCENE
-============================================================
-*/
+/* =========================================================
+   SCENE
+========================================================= */
 
 function createScene() {
-
     scene = new THREE.Scene();
 
-    scene.background =
-        new THREE.Color(
-            0x0d1420
-        );
+    scene.background = new THREE.Color(0x0d1420);
 
-    scene.fog =
-        new THREE.FogExp2(
-            0x0d1420,
-            0.009
-        );
+    scene.fog = new THREE.FogExp2(
+        0x0d1420,
+        0.009
+    );
 }
-
-/*
-============================================================
- CAMERA
-============================================================
-*/
 
 function createCamera() {
+    camera = new THREE.PerspectiveCamera(
+        78,
+        window.innerWidth / window.innerHeight,
+        0.03,
+        500
+    );
 
-    camera =
-        new THREE.PerspectiveCamera(
-            78,
-            window.innerWidth /
-                window.innerHeight,
-            0.03,
-            500
-        );
-
-    camera.rotation.order =
-        "YXZ";
+    camera.rotation.order = "YXZ";
 }
 
-/*
-============================================================
- RENDERER
-============================================================
-*/
-
 function createRenderer() {
-
-    renderer =
-        new THREE.WebGLRenderer({
-            antialias: true,
-            powerPreference:
-                "high-performance"
-        });
+    renderer = new THREE.WebGLRenderer({
+        antialias: true,
+        powerPreference: "high-performance"
+    });
 
     renderer.setPixelRatio(
-        Math.min(
-            window.devicePixelRatio || 1,
-            2
-        )
+        Math.min(window.devicePixelRatio || 1, 2)
     );
 
     renderer.setSize(
@@ -208,9 +150,7 @@ function createRenderer() {
         window.innerHeight
     );
 
-    renderer.shadowMap.enabled =
-        true;
-
+    renderer.shadowMap.enabled = true;
     renderer.shadowMap.type =
         THREE.PCFSoftShadowMap;
 
@@ -220,429 +160,219 @@ function createRenderer() {
     renderer.toneMapping =
         THREE.ACESFilmicToneMapping;
 
-    renderer.toneMappingExposure =
-        1.15;
+    renderer.toneMappingExposure = 1.15;
 
     const screen =
-        document.getElementById(
-            "game-screen"
-        );
+        document.getElementById("game-screen");
 
     if (screen) {
-
-        screen.style.display =
-            "block";
-
-        screen.appendChild(
-            renderer.domElement
-        );
-
+        screen.style.display = "block";
+        screen.appendChild(renderer.domElement);
     } else {
-
-        document.body.appendChild(
-            renderer.domElement
-        );
+        document.body.appendChild(renderer.domElement);
     }
 }
 
-/*
-============================================================
- LIGHTING
-============================================================
-*/
+/* =========================================================
+   LIGHTING
+========================================================= */
 
 function createLighting() {
-
-    const hemi =
-        new THREE.HemisphereLight(
-            0xb7d4ff,
-            0x111722,
-            1.8
-        );
+    const hemi = new THREE.HemisphereLight(
+        0xb7d4ff,
+        0x111722,
+        1.8
+    );
 
     scene.add(hemi);
 
-    const sun =
-        new THREE.DirectionalLight(
-            0xffffff,
-            3.1
-        );
-
-    sun.position.set(
-        -35,
-        55,
-        25
+    const sun = new THREE.DirectionalLight(
+        0xffffff,
+        3.1
     );
 
+    sun.position.set(-35, 55, 25);
     sun.castShadow = true;
 
-    sun.shadow.mapSize.width =
-        2048;
+    sun.shadow.mapSize.width = 2048;
+    sun.shadow.mapSize.height = 2048;
 
-    sun.shadow.mapSize.height =
-        2048;
-
-    sun.shadow.camera.left =
-        -70;
-
-    sun.shadow.camera.right =
-        70;
-
-    sun.shadow.camera.top =
-        70;
-
-    sun.shadow.camera.bottom =
-        -70;
+    sun.shadow.camera.left = -70;
+    sun.shadow.camera.right = 70;
+    sun.shadow.camera.top = 70;
+    sun.shadow.camera.bottom = -70;
 
     scene.add(sun);
 
-    const blue =
-        new THREE.PointLight(
-            0x276eff,
-            18,
-            35
-        );
-
-    blue.position.set(
-        -20,
-        5,
-        -20
+    const blue = new THREE.PointLight(
+        0x276eff,
+        18,
+        35
     );
 
+    blue.position.set(-20, 5, -20);
     scene.add(blue);
 
-    const orange =
-        new THREE.PointLight(
-            0xff632d,
-            18,
-            35
-        );
-
-    orange.position.set(
-        20,
-        5,
-        20
+    const orange = new THREE.PointLight(
+        0xff632d,
+        18,
+        35
     );
 
+    orange.position.set(20, 5, 20);
     scene.add(orange);
 }
 
-/*
-============================================================
- MATERIAL
-============================================================
-*/
+/* =========================================================
+   MATERIAL
+========================================================= */
 
 function material(
     color,
     roughness = 0.75,
     metalness = 0
 ) {
-
     return new THREE.MeshStandardMaterial({
-
         color,
-
         roughness,
-
         metalness
     });
 }
 
-/*
-============================================================
- ARENA
-============================================================
-*/
+/* =========================================================
+   ARENA
+========================================================= */
 
 function createArena() {
-
     createGround();
-
     createFloorTiles();
-
     createOuterWalls();
-
     createBuildings();
-
     createCover();
-
     createArenaLights();
-
     createSpawnPads();
 }
 
-/*
-============================================================
- GROUND
-============================================================
-*/
-
 function createGround() {
+    const ground = new THREE.Mesh(
+        new THREE.BoxGeometry(60, 1, 60),
+        material(0x222a34, 0.96)
+    );
 
-    const ground =
-        new THREE.Mesh(
-
-            new THREE.BoxGeometry(
-                60,
-                1,
-                60
-            ),
-
-            material(
-                0x222a34,
-                0.96
-            )
-        );
-
-    ground.position.y =
-        -0.5;
-
-    ground.receiveShadow =
-        true;
+    ground.position.y = -0.5;
+    ground.receiveShadow = true;
 
     scene.add(ground);
 }
 
-/*
-============================================================
- FLOOR
-============================================================
-*/
-
 function createFloorTiles() {
-
     const tileMaterial =
-        material(
-            0x303944,
-            0.9
-        );
+        material(0x303944, 0.9);
 
     const lineMaterial =
-        material(
-            0x454e5a,
-            0.8
-        );
+        material(0x454e5a, 0.8);
 
-    for (
-        let x = -28;
-        x <= 28;
-        x += 4
-    ) {
-
-        for (
-            let z = -28;
-            z <= 28;
-            z += 4
-        ) {
-
-            const tile =
-                new THREE.Mesh(
-
-                    new THREE.BoxGeometry(
-                        3.82,
-                        0.04,
-                        3.82
-                    ),
-
-                    tileMaterial
-                );
-
-            tile.position.set(
-                x,
-                0.03,
-                z
+    for (let x = -28; x <= 28; x += 4) {
+        for (let z = -28; z <= 28; z += 4) {
+            const tile = new THREE.Mesh(
+                new THREE.BoxGeometry(
+                    3.82,
+                    0.04,
+                    3.82
+                ),
+                tileMaterial
             );
 
-            tile.receiveShadow =
-                true;
+            tile.position.set(x, 0.03, z);
+            tile.receiveShadow = true;
 
             scene.add(tile);
         }
     }
 
-    for (
-        let i = -28;
-        i <= 28;
-        i += 4
-    ) {
-
-        const xLine =
-            new THREE.Mesh(
-
-                new THREE.BoxGeometry(
-                    0.035,
-                    0.025,
-                    56
-                ),
-
-                lineMaterial
-            );
-
-        xLine.position.set(
-            i,
-            0.055,
-            0
+    for (let i = -28; i <= 28; i += 4) {
+        const xLine = new THREE.Mesh(
+            new THREE.BoxGeometry(
+                0.035,
+                0.025,
+                56
+            ),
+            lineMaterial
         );
 
+        xLine.position.set(i, 0.055, 0);
         scene.add(xLine);
 
-        const zLine =
-            new THREE.Mesh(
-
-                new THREE.BoxGeometry(
-                    56,
-                    0.025,
-                    0.035
-                ),
-
-                lineMaterial
-            );
-
-        zLine.position.set(
-            0,
-            0.056,
-            i
+        const zLine = new THREE.Mesh(
+            new THREE.BoxGeometry(
+                56,
+                0.025,
+                0.035
+            ),
+            lineMaterial
         );
 
+        zLine.position.set(0, 0.056, i);
         scene.add(zLine);
     }
 }
 
-/*
-============================================================
- OUTER WALLS
-============================================================
-*/
+/* =========================================================
+   OUTER WALLS
+========================================================= */
 
 function createOuterWalls() {
-
-    addObstacle(
-        0,
-        3,
-        -30,
-        60,
-        6,
-        1
-    );
-
-    addObstacle(
-        0,
-        3,
-        30,
-        60,
-        6,
-        1
-    );
-
-    addObstacle(
-        -30,
-        3,
-        0,
-        1,
-        6,
-        60
-    );
-
-    addObstacle(
-        30,
-        3,
-        0,
-        1,
-        6,
-        60
-    );
+    addObstacle(0, 3, -30, 60, 6, 1);
+    addObstacle(0, 3, 30, 60, 6, 1);
+    addObstacle(-30, 3, 0, 1, 6, 60);
+    addObstacle(30, 3, 0, 1, 6, 60);
 }
 
-/*
-============================================================
- BUILDINGS
-============================================================
-*/
+/* =========================================================
+   BUILDINGS
+========================================================= */
 
 function createBuildings() {
-
-    /*
-    NORTH WEST
-    BIG + ENTERABLE + STAIRS
-    */
-
     createLargeBuilding(
-        -20,
-        -18,
-        12,
-        10,
+        -20, -18,
+        12, 10,
         3,
         true,
         true
     );
 
-    /*
-    NORTH EAST
-    BIG + ENTERABLE + LADDER
-    */
-
     createLargeBuilding(
-        20,
-        -18,
-        12,
-        10,
+        20, -18,
+        12, 10,
         4,
         true,
         false
     );
 
-    /*
-    SOUTH WEST
-    BIG + SOLID
-    */
-
     createLargeBuilding(
-        -20,
-        18,
-        12,
-        10,
+        -20, 18,
+        12, 10,
         4,
         false,
         false
     );
 
-    /*
-    SOUTH EAST
-    BIG + ENTERABLE + LADDER
-    */
-
     createLargeBuilding(
-        20,
-        18,
-        12,
-        10,
+        20, 18,
+        12, 10,
         3,
         true,
         false
     );
 
-    /*
-    CENTER
-    ENTERABLE + STAIRS
-    */
-
     createLargeBuilding(
-        0,
-        0,
-        10,
-        8,
+        0, 0,
+        10, 8,
         3,
         true,
         true
     );
 }
-
-/*
-============================================================
- LARGE BUILDING
-============================================================
-*/
 
 function createLargeBuilding(
     x,
@@ -653,33 +383,14 @@ function createLargeBuilding(
     enterable,
     hasStairs
 ) {
-
     const floorHeight = 4;
-
     const totalHeight =
-        floors *
-        floorHeight;
-
-    const wallMaterial =
-        material(
-            0x454f5c,
-            0.72,
-            0.12
-        );
+        floors * floorHeight;
 
     const roofMaterial =
-        material(
-            0x202832,
-            0.55,
-            0.25
-        );
+        material(0x202832, 0.55, 0.25);
 
     if (!enterable) {
-
-        /*
-        Solid building
-        */
-
         addObstacle(
             x,
             totalHeight / 2,
@@ -688,13 +399,10 @@ function createLargeBuilding(
             totalHeight,
             depth
         );
-
     } else {
-
         /*
-        BACK WALL
-        */
-
+         * BACK
+         */
         addObstacle(
             x,
             totalHeight / 2,
@@ -705,9 +413,8 @@ function createLargeBuilding(
         );
 
         /*
-        LEFT WALL
-        */
-
+         * LEFT
+         */
         addObstacle(
             x - width / 2,
             totalHeight / 2,
@@ -718,9 +425,8 @@ function createLargeBuilding(
         );
 
         /*
-        RIGHT WALL
-        */
-
+         * RIGHT
+         */
         addObstacle(
             x + width / 2,
             totalHeight / 2,
@@ -731,18 +437,15 @@ function createLargeBuilding(
         );
 
         /*
-        FRONT WALL
-        LEAVES ENTRANCE
-        */
+         * FRONT WITH DOOR OPENING
+         */
+        const doorWidth = 3;
 
         const sideWidth =
-            (width - 3) / 2;
+            (width - doorWidth) / 2;
 
         addObstacle(
-            x -
-                (width -
-                    sideWidth) /
-                    2,
+            x - (doorWidth / 2 + sideWidth / 2),
             totalHeight / 2,
             z - depth / 2,
             sideWidth,
@@ -751,10 +454,7 @@ function createLargeBuilding(
         );
 
         addObstacle(
-            x +
-                (width -
-                    sideWidth) /
-                    2,
+            x + (doorWidth / 2 + sideWidth / 2),
             totalHeight / 2,
             z - depth / 2,
             sideWidth,
@@ -764,57 +464,61 @@ function createLargeBuilding(
     }
 
     /*
-    FLOOR PLATFORMS
-    */
+     * UPPER FLOORS
+     *
+     * Leave a staircase opening in
+     * the floor so players can reach it.
+     */
+    for (let floor = 1; floor < floors; floor++) {
+        const floorY = floor * floorHeight;
 
-    for (
-        let floor = 1;
-        floor < floors;
-        floor++
-    ) {
+        const openingWidth =
+            enterable && hasStairs ? 3 : 0;
 
-        const floorMesh =
-            new THREE.Mesh(
+        if (openingWidth) {
+            const sectionWidth =
+                (width - openingWidth) / 2;
 
-                new THREE.BoxGeometry(
-                    width - 0.8,
-                    0.25,
-                    depth - 0.8
-                ),
-
+            addVisualFloor(
+                x - (openingWidth / 2 + sectionWidth / 2),
+                floorY,
+                z,
+                sectionWidth,
+                depth - 0.8,
                 roofMaterial
             );
 
-        floorMesh.position.set(
-            x,
-            floor *
-                floorHeight,
-            z
-        );
-
-        floorMesh.receiveShadow =
-            true;
-
-        scene.add(
-            floorMesh
-        );
+            addVisualFloor(
+                x + (openingWidth / 2 + sectionWidth / 2),
+                floorY,
+                z,
+                sectionWidth,
+                depth - 0.8,
+                roofMaterial
+            );
+        } else {
+            addVisualFloor(
+                x,
+                floorY,
+                z,
+                width - 0.8,
+                depth - 0.8,
+                roofMaterial
+            );
+        }
     }
 
     /*
-    ROOF
-    */
-
-    const roof =
-        new THREE.Mesh(
-
-            new THREE.BoxGeometry(
-                width + 0.5,
-                0.3,
-                depth + 0.5
-            ),
-
-            roofMaterial
-        );
+     * ROOF
+     */
+    const roof = new THREE.Mesh(
+        new THREE.BoxGeometry(
+            width + 0.5,
+            0.3,
+            depth + 0.5
+        ),
+        roofMaterial
+    );
 
     roof.position.set(
         x,
@@ -822,18 +526,14 @@ function createLargeBuilding(
         z
     );
 
-    roof.castShadow =
-        true;
-
-    roof.receiveShadow =
-        true;
+    roof.castShadow = true;
+    roof.receiveShadow = true;
 
     scene.add(roof);
 
     /*
-    WINDOWS
-    */
-
+     * Windows
+     */
     createBuildingWindows(
         x,
         z,
@@ -843,14 +543,9 @@ function createLargeBuilding(
     );
 
     /*
-    STAIRS
-    */
-
-    if (
-        enterable &&
-        hasStairs
-    ) {
-
+     * Stairs
+     */
+    if (enterable && hasStairs) {
         createBuildingStairs(
             x,
             z,
@@ -861,27 +556,43 @@ function createLargeBuilding(
     }
 
     /*
-    LADDER
-    */
-
-    if (
-        enterable &&
-        !hasStairs
-    ) {
-
+     * Ladder
+     */
+    if (enterable && !hasStairs) {
         createBuildingLadder(
-            x + width / 2 + 0.45,
-            z,
+            x,
+            z - depth / 2 - 0.65,
             totalHeight
         );
     }
 }
 
-/*
-============================================================
- WINDOWS
-============================================================
-*/
+function addVisualFloor(
+    x,
+    y,
+    z,
+    width,
+    depth,
+    mat
+) {
+    const floor = new THREE.Mesh(
+        new THREE.BoxGeometry(
+            width,
+            0.25,
+            depth
+        ),
+        mat
+    );
+
+    floor.position.set(x, y, z);
+    floor.receiveShadow = true;
+
+    scene.add(floor);
+}
+
+/* =========================================================
+   WINDOWS
+========================================================= */
 
 function createBuildingWindows(
     x,
@@ -890,77 +601,49 @@ function createBuildingWindows(
     depth,
     floors
 ) {
-
     const glass =
         new THREE.MeshStandardMaterial({
-
             color: 0x17324d,
-
             roughness: 0.18,
-
             metalness: 0.45,
-
             emissive: 0x061321,
-
             emissiveIntensity: 0.8
         });
 
-    for (
-        let floor = 0;
-        floor < floors;
-        floor++
-    ) {
+    for (let floor = 0; floor < floors; floor++) {
+        const y = 1.7 + floor * 4;
 
-        const y =
-            1.7 +
-            floor * 4;
-
-        for (
-            let i = -1;
-            i <= 1;
-            i++
-        ) {
-
-            const front =
-                new THREE.Mesh(
-
-                    new THREE.BoxGeometry(
-                        1.5,
-                        1.4,
-                        0.08
-                    ),
-
-                    glass
-                );
+        for (let i = -1; i <= 1; i++) {
+            const front = new THREE.Mesh(
+                new THREE.BoxGeometry(
+                    1.5,
+                    1.4,
+                    0.08
+                ),
+                glass
+            );
 
             front.position.set(
                 x + i * 3,
                 y,
-                z -
-                    depth / 2 -
-                    0.04
+                z - depth / 2 - 0.04
             );
 
             scene.add(front);
 
-            const back =
-                new THREE.Mesh(
-
-                    new THREE.BoxGeometry(
-                        1.5,
-                        1.4,
-                        0.08
-                    ),
-
-                    glass
-                );
+            const back = new THREE.Mesh(
+                new THREE.BoxGeometry(
+                    1.5,
+                    1.4,
+                    0.08
+                ),
+                glass
+            );
 
             back.position.set(
                 x + i * 3,
                 y,
-                z +
-                    depth / 2 +
-                    0.04
+                z + depth / 2 + 0.04
             );
 
             scene.add(back);
@@ -968,11 +651,9 @@ function createBuildingWindows(
     }
 }
 
-/*
-============================================================
- STAIRS
-============================================================
-*/
+/* =========================================================
+   STAIRS
+========================================================= */
 
 function createBuildingStairs(
     x,
@@ -981,7 +662,6 @@ function createBuildingStairs(
     depth,
     floors
 ) {
-
     const stairMaterial =
         material(
             0x59636f,
@@ -989,75 +669,92 @@ function createBuildingStairs(
             0.15
         );
 
-    const stairWidth = 2.5;
+    const stairWidth = 2.6;
+    const stepsPerFloor = 12;
 
     for (
         let floor = 0;
         floor < floors - 1;
         floor++
     ) {
+        const baseY = floor * 4;
 
-        const baseY =
-            floor * 4;
-
-        const steps = 11;
-
+        /*
+         * Stairs run toward the rear.
+         */
         for (
             let i = 0;
-            i < steps;
+            i < stepsPerFloor;
             i++
         ) {
+            const stepHeight =
+                0.333;
 
-            const step =
-                new THREE.Mesh(
-
-                    new THREE.BoxGeometry(
-                        stairWidth,
-                        0.25,
-                        0.6
-                    ),
-
-                    stairMaterial
-                );
-
-            step.position.set(
-
-                x -
-                    width / 2 +
-                    2,
-
-                baseY +
-                    i * 0.36,
-
-                z -
-                    depth / 2 +
-                    1.5 +
-                    i * 0.38
+            const step = new THREE.Mesh(
+                new THREE.BoxGeometry(
+                    stairWidth,
+                    0.28,
+                    0.58
+                ),
+                stairMaterial
             );
 
-            step.castShadow =
-                true;
+            step.position.set(
+                x,
+                baseY +
+                    i * stepHeight +
+                    0.14,
+                z -
+                    depth / 2 +
+                    1.2 +
+                    i * 0.43
+            );
 
-            step.receiveShadow =
-                true;
+            step.castShadow = true;
+            step.receiveShadow = true;
 
             scene.add(step);
         }
+
+        /*
+         * Invisible logical staircase.
+         * This makes movement actually climb.
+         */
+        stairsAreas.push({
+            minX: x - stairWidth / 2,
+            maxX: x + stairWidth / 2,
+
+            minZ:
+                z -
+                depth / 2 +
+                0.8,
+
+            maxZ:
+                z -
+                depth / 2 +
+                0.8 +
+                stepsPerFloor * 0.43,
+
+            startY:
+                1.7 +
+                floor * 4,
+
+            endY:
+                1.7 +
+                (floor + 1) * 4
+        });
     }
 }
 
-/*
-============================================================
- LADDER
-============================================================
-*/
+/* =========================================================
+   LADDER
+========================================================= */
 
 function createBuildingLadder(
     x,
     z,
     height
 ) {
-
     const ladderMaterial =
         material(
             0xa4afb9,
@@ -1065,25 +762,15 @@ function createBuildingLadder(
             0.75
         );
 
-    /*
-    Rails
-    */
-
-    for (
-        const side of [-0.35, 0.35]
-    ) {
-
-        const rail =
-            new THREE.Mesh(
-
-                new THREE.BoxGeometry(
-                    0.12,
-                    height,
-                    0.12
-                ),
-
-                ladderMaterial
-            );
+    for (const side of [-0.35, 0.35]) {
+        const rail = new THREE.Mesh(
+            new THREE.BoxGeometry(
+                0.12,
+                height,
+                0.12
+            ),
+            ladderMaterial
+        );
 
         rail.position.set(
             x + side,
@@ -1091,33 +778,24 @@ function createBuildingLadder(
             z
         );
 
-        rail.castShadow =
-            true;
+        rail.castShadow = true;
 
         scene.add(rail);
     }
-
-    /*
-    Rungs
-    */
 
     for (
         let y = 0.4;
         y < height;
         y += 0.45
     ) {
-
-        const rung =
-            new THREE.Mesh(
-
-                new THREE.BoxGeometry(
-                    0.8,
-                    0.1,
-                    0.1
-                ),
-
-                ladderMaterial
-            );
+        const rung = new THREE.Mesh(
+            new THREE.BoxGeometry(
+                0.8,
+                0.1,
+                0.1
+            ),
+            ladderMaterial
+        );
 
         rung.position.set(
             x,
@@ -1125,8 +803,7 @@ function createBuildingLadder(
             z
         );
 
-        rung.castShadow =
-            true;
+        rung.castShadow = true;
 
         scene.add(rung);
     }
@@ -1138,70 +815,22 @@ function createBuildingLadder(
     });
 }
 
-/*
-============================================================
- COVER
-============================================================
-*/
+/* =========================================================
+   COVER
+========================================================= */
 
 function createCover() {
+    createCrate(-11, 1, -5);
+    createCrate(-7, 1, -5);
+    createCrate(11, 1, 5);
+    createCrate(7, 1, 5);
 
-    createCrate(
-        -11,
-        1,
-        -5
-    );
+    createCrate(-10, 1.5, 8, 3);
+    createCrate(10, 1.5, -8, 3);
 
-    createCrate(
-        -7,
-        1,
-        -5
-    );
-
-    createCrate(
-        11,
-        1,
-        5
-    );
-
-    createCrate(
-        7,
-        1,
-        5
-    );
-
-    createCrate(
-        -10,
-        1.5,
-        8,
-        3
-    );
-
-    createCrate(
-        10,
-        1.5,
-        -8,
-        3
-    );
-
-    createBarrier(
-        -8,
-        0,
-        0
-    );
-
-    createBarrier(
-        8,
-        0,
-        0
-    );
+    createBarrier(-8, 0, 0);
+    createBarrier(8, 0, 0);
 }
-
-/*
-============================================================
- CRATE
-============================================================
-*/
 
 function createCrate(
     x,
@@ -1209,64 +838,38 @@ function createCrate(
     z,
     size = 2
 ) {
-
-    const crate =
-        new THREE.Mesh(
-
-            new THREE.BoxGeometry(
-                size,
-                size,
-                size
-            ),
-
-            material(
-                0x6b4229,
-                0.82
-            )
-        );
-
-    crate.position.set(
-        x,
-        y,
-        z
+    const crate = new THREE.Mesh(
+        new THREE.BoxGeometry(
+            size,
+            size,
+            size
+        ),
+        material(
+            0x6b4229,
+            0.82
+        )
     );
 
-    crate.castShadow =
-        true;
+    crate.position.set(x, y, z);
 
-    crate.receiveShadow =
-        true;
+    crate.castShadow = true;
+    crate.receiveShadow = true;
 
     scene.add(crate);
 
     obstacles.push({
-
-        minX:
-            x - size / 2,
-
-        maxX:
-            x + size / 2,
-
-        minZ:
-            z - size / 2,
-
-        maxZ:
-            z + size / 2
+        minX: x - size / 2,
+        maxX: x + size / 2,
+        minZ: z - size / 2,
+        maxZ: z + size / 2
     });
 }
-
-/*
-============================================================
- BARRIER
-============================================================
-*/
 
 function createBarrier(
     x,
     y,
     z
 ) {
-
     addObstacle(
         x,
         1.2,
@@ -1277,12 +880,6 @@ function createBarrier(
     );
 }
 
-/*
-============================================================
- OBSTACLE
-============================================================
-*/
-
 function addObstacle(
     x,
     y,
@@ -1291,82 +888,52 @@ function addObstacle(
     height,
     depth
 ) {
-
-    const wall =
-        new THREE.Mesh(
-
-            new THREE.BoxGeometry(
-                width,
-                height,
-                depth
-            ),
-
-            material(
-                0x414b57,
-                0.78,
-                0.08
-            )
-        );
-
-    wall.position.set(
-        x,
-        y,
-        z
+    const wall = new THREE.Mesh(
+        new THREE.BoxGeometry(
+            width,
+            height,
+            depth
+        ),
+        material(
+            0x414b57,
+            0.78,
+            0.08
+        )
     );
 
-    wall.castShadow =
-        true;
+    wall.position.set(x, y, z);
 
-    wall.receiveShadow =
-        true;
+    wall.castShadow = true;
+    wall.receiveShadow = true;
 
     scene.add(wall);
 
     obstacles.push({
-
-        minX:
-            x - width / 2,
-
-        maxX:
-            x + width / 2,
-
-        minZ:
-            z - depth / 2,
-
-        maxZ:
-            z + depth / 2
+        minX: x - width / 2,
+        maxX: x + width / 2,
+        minZ: z - depth / 2,
+        maxZ: z + depth / 2
     });
 }
 
-/*
-============================================================
- ARENA LIGHTS
-============================================================
-*/
+/* =========================================================
+   ARENA LIGHTS
+========================================================= */
 
 function createArenaLights() {
-
     const positions = [
-
         [-15, 6, -15],
-
         [15, 6, -15],
-
         [-15, 6, 15],
-
         [15, 6, 15]
     ];
 
-    for (
-        const p of positions
-    ) {
-
-        const light =
-            new THREE.PointLight(
-                0x75a8ff,
-                14,
-                18
-            );
+    for (const p of positions) {
+        const light = new THREE.PointLight(
+            0x75a8ff,
+            14,
+            18
+        );
 
         light.position.set(
             p[0],
@@ -1378,40 +945,26 @@ function createArenaLights() {
     }
 }
 
-/*
-============================================================
- SPAWN PADS
-============================================================
-*/
+/* =========================================================
+   SPAWN PADS
+========================================================= */
 
 function createSpawnPads() {
-
-    for (
-        const spawn of
-        spawnPoints
-    ) {
-
-        const pad =
-            new THREE.Mesh(
-
-                new THREE.CylinderGeometry(
-                    2.2,
-                    2.2,
-                    0.06,
-                    32
-                ),
-
-                new THREE.MeshStandardMaterial({
-
-                    color: 0x1e5f9f,
-
-                    emissive: 0x082c58,
-
-                    emissiveIntensity: 1,
-
-                    roughness: 0.4
-                })
-            );
+    for (const spawn of spawnPoints) {
+        const pad = new THREE.Mesh(
+            new THREE.CylinderGeometry(
+                2.2,
+                2.2,
+                0.06,
+                32
+            ),
+            new THREE.MeshStandardMaterial({
+                color: 0x1e5f9f,
+                emissive: 0x082c58,
+                emissiveIntensity: 1,
+                roughness: 0.4
+            })
+        );
 
         pad.position.set(
             spawn.x,
@@ -1423,16 +976,12 @@ function createSpawnPads() {
     }
 }
 
-/*
-============================================================
- LOCAL PLAYER
-============================================================
-*/
+/* =========================================================
+   PLAYER
+========================================================= */
 
 function createLocalPlayer() {
-
-    player =
-        new THREE.Object3D();
+    player = new THREE.Object3D();
 
     player.position.set(
         0,
@@ -1440,37 +989,25 @@ function createLocalPlayer() {
         25
     );
 
-    player.rotation.order =
-        "YXZ";
+    player.rotation.order = "YXZ";
 
     scene.add(player);
 
     player.add(camera);
 
-    camera.position.set(
-        0,
-        0,
-        0
-    );
+    camera.position.set(0, 0, 0);
 }
 
-/*
-============================================================
- WEAPON
-============================================================
-*/
+/* =========================================================
+   WEAPON
+========================================================= */
 
 function createWeapon() {
-
     if (weaponRoot) {
-
-        camera.remove(
-            weaponRoot
-        );
+        camera.remove(weaponRoot);
     }
 
-    weaponRoot =
-        new THREE.Group();
+    weaponRoot = new THREE.Group();
 
     weaponRoot.position.set(
         0.48,
@@ -1478,60 +1015,28 @@ function createWeapon() {
         -0.8
     );
 
-    camera.add(
-        weaponRoot
-    );
+    camera.add(weaponRoot);
 
-    if (
-        currentWeapon ===
-        "ak"
-    ) {
-
+    if (currentWeapon === "ak") {
         createAK();
-
-    } else if (
-        currentWeapon ===
-        "pistol"
-    ) {
-
+    } else if (currentWeapon === "pistol") {
         createPistol();
-
     } else {
-
         createKnife();
     }
 }
 
-/*
-============================================================
- AK
-============================================================
-*/
-
 function createAK() {
-
-    weaponModel =
-        new THREE.Group();
+    weaponModel = new THREE.Group();
 
     const metal =
-        material(
-            0x15191e,
-            0.25,
-            0.8
-        );
+        material(0x15191e, 0.25, 0.8);
 
     const dark =
-        material(
-            0x090b0d,
-            0.2,
-            0.9
-        );
+        material(0x090b0d, 0.2, 0.9);
 
     const wood =
-        material(
-            0x70411f,
-            0.62
-        );
+        material(0x70411f, 0.62);
 
     addWeaponPart(
         new THREE.BoxGeometry(
@@ -1601,78 +1106,45 @@ function createAK() {
         0.8
     );
 
-    const mag =
-        addWeaponPart(
-            new THREE.BoxGeometry(
-                0.25,
-                0.65,
-                0.32
-            ),
-            dark,
-            0,
-            -0.4,
-            -0.05
-        );
-
-    mag.rotation.x =
-        -0.18;
-
-    const grip =
-        addWeaponPart(
-            new THREE.BoxGeometry(
-                0.22,
-                0.5,
-                0.25
-            ),
-            dark,
-            0,
-            -0.32,
-            0.35
-        );
-
-    grip.rotation.x =
-        -0.2;
-
-    addWeaponPart(
+    const mag = addWeaponPart(
         new THREE.BoxGeometry(
-            0.07,
-            0.16,
-            0.1
+            0.25,
+            0.65,
+            0.32
         ),
         dark,
         0,
-        0.17,
-        -0.45
+        -0.4,
+        -0.05
     );
 
-    weaponRoot.add(
-        weaponModel
+    mag.rotation.x = -0.18;
+
+    const grip = addWeaponPart(
+        new THREE.BoxGeometry(
+            0.22,
+            0.5,
+            0.25
+        ),
+        dark,
+        0,
+        -0.32,
+        0.35
     );
+
+    grip.rotation.x = -0.2;
+
+    weaponRoot.add(weaponModel);
 }
 
-/*
-============================================================
- PISTOL
-============================================================
-*/
-
 function createPistol() {
-
-    weaponModel =
-        new THREE.Group();
+    weaponModel = new THREE.Group();
 
     const metal =
-        material(
-            0x20252b,
-            0.24,
-            0.8
-        );
+        material(0x20252b, 0.24, 0.8);
 
     const gripMaterial =
-        material(
-            0x101216,
-            0.85
-        );
+        material(0x101216, 0.85);
 
     addWeaponPart(
         new THREE.BoxGeometry(
@@ -1702,50 +1174,31 @@ function createPistol() {
         Math.PI / 2
     );
 
-    const grip =
-        addWeaponPart(
-            new THREE.BoxGeometry(
-                0.26,
-                0.6,
-                0.28
-            ),
-            gripMaterial,
-            0,
-            -0.27,
-            0.25
-        );
-
-    grip.rotation.x =
-        -0.16;
-
-    weaponRoot.add(
-        weaponModel
+    const grip = addWeaponPart(
+        new THREE.BoxGeometry(
+            0.26,
+            0.6,
+            0.28
+        ),
+        gripMaterial,
+        0,
+        -0.27,
+        0.25
     );
+
+    grip.rotation.x = -0.16;
+
+    weaponRoot.add(weaponModel);
 }
 
-/*
-============================================================
- KNIFE
-============================================================
-*/
-
 function createKnife() {
-
-    weaponModel =
-        new THREE.Group();
+    weaponModel = new THREE.Group();
 
     const blade =
-        material(
-            0xc5d0dc,
-            0.12,
-            0.95
-        );
+        material(0xc5d0dc, 0.12, 0.95);
 
     const dark =
-        material(
-            0x11151a,
-            0.7
-        );
+        material(0x11151a, 0.7);
 
     addWeaponPart(
         new THREE.BoxGeometry(
@@ -1759,21 +1212,19 @@ function createKnife() {
         -0.7
     );
 
-    const tip =
-        addWeaponPart(
-            new THREE.ConeGeometry(
-                0.09,
-                0.38,
-                4
-            ),
-            blade,
-            0,
-            0,
-            -1.57
-        );
+    const tip = addWeaponPart(
+        new THREE.ConeGeometry(
+            0.09,
+            0.38,
+            4
+        ),
+        blade,
+        0,
+        0,
+        -1.57
+    );
 
-    tip.rotation.x =
-        -Math.PI / 2;
+    tip.rotation.x = -Math.PI / 2;
 
     addWeaponPart(
         new THREE.BoxGeometry(
@@ -1799,16 +1250,8 @@ function createKnife() {
         0.42
     );
 
-    weaponRoot.add(
-        weaponModel
-    );
+    weaponRoot.add(weaponModel);
 }
-
-/*
-============================================================
- WEAPON PART
-============================================================
-*/
 
 function addWeaponPart(
     geometry,
@@ -1820,83 +1263,54 @@ function addWeaponPart(
     ry = 0,
     rz = 0
 ) {
-
-    const part =
-        new THREE.Mesh(
-            geometry,
-            mat
-        );
-
-    part.position.set(
-        x,
-        y,
-        z
+    const part = new THREE.Mesh(
+        geometry,
+        mat
     );
 
-    part.rotation.set(
-        rx,
-        ry,
-        rz
-    );
+    part.position.set(x, y, z);
+    part.rotation.set(rx, ry, rz);
 
-    part.castShadow =
-        true;
+    part.castShadow = true;
 
     weaponModel.add(part);
 
     return part;
 }
 
-/*
-============================================================
- HUD
-============================================================
-*/
+/* =========================================================
+   HUD
+========================================================= */
 
 function createHUD() {
-
     const old =
         document.getElementById(
             "novaEnhancedHUD"
         );
 
-    if (old)
-        old.remove();
+    if (old) old.remove();
 
     const hud =
-        document.createElement(
-            "div"
-        );
+        document.createElement("div");
 
-    hud.id =
-        "novaEnhancedHUD";
+    hud.id = "novaEnhancedHUD";
 
     Object.assign(
         hud.style,
         {
             position: "fixed",
             inset: "0",
-            pointerEvents:
-                "none",
+            pointerEvents: "none",
             zIndex: "100",
-            fontFamily:
-                "Arial, sans-serif",
+            fontFamily: "Arial,sans-serif",
             color: "white"
         }
     );
 
-    document.body.appendChild(
-        hud
-    );
-
-    /*
-    Crosshair
-    */
+    document.body.appendChild(hud);
 
     const cross =
-        document.createElement(
-            "div"
-        );
+        document.createElement("div");
 
     cross.innerHTML =
         "<span></span><span></span><span></span><span></span>";
@@ -1914,77 +1328,47 @@ function createHUD() {
         }
     );
 
-    hud.appendChild(
-        cross
-    );
+    hud.appendChild(cross);
 
-    for (
-        const child of
-        cross.children
-    ) {
-
+    for (const child of cross.children) {
         Object.assign(
             child.style,
             {
-                position:
-                    "absolute",
+                position: "absolute",
                 width: "7px",
                 height: "2px",
-                background:
-                    "white",
+                background: "white",
                 boxShadow:
                     "0 0 4px black"
             }
         );
     }
 
-    cross.children[0].style.left =
-        "0";
+    cross.children[0].style.left = "0";
+    cross.children[0].style.top = "11px";
 
-    cross.children[0].style.top =
-        "11px";
+    cross.children[1].style.right = "0";
+    cross.children[1].style.top = "11px";
 
-    cross.children[1].style.right =
-        "0";
-
-    cross.children[1].style.top =
-        "11px";
-
-    cross.children[2].style.left =
-        "11px";
-
-    cross.children[2].style.top =
-        "0";
-
+    cross.children[2].style.left = "11px";
+    cross.children[2].style.top = "0";
     cross.children[2].style.transform =
         "rotate(90deg)";
 
-    cross.children[3].style.left =
-        "11px";
-
-    cross.children[3].style.bottom =
-        "0";
-
+    cross.children[3].style.left = "11px";
+    cross.children[3].style.bottom = "0";
     cross.children[3].style.transform =
         "rotate(90deg)";
 
-    /*
-    HEALTH
-    */
-
     const healthBox =
-        document.createElement(
-            "div"
-        );
+        document.createElement("div");
 
-    healthBox.id =
-        "novaHealthBox";
+    healthBox.id = "novaHealthBox";
 
     Object.assign(
         healthBox.style,
         {
-            position:
-                "absolute",
+            position: "absolute",
             left: "25px",
             bottom: "25px",
             fontSize: "24px",
@@ -1994,27 +1378,17 @@ function createHUD() {
         }
     );
 
-    hud.appendChild(
-        healthBox
-    );
-
-    /*
-    WEAPON
-    */
+    hud.appendChild(healthBox);
 
     const weaponBox =
-        document.createElement(
-            "div"
-        );
+        document.createElement("div");
 
-    weaponBox.id =
-        "novaWeaponBox";
+    weaponBox.id = "novaWeaponBox";
 
     Object.assign(
         weaponBox.style,
         {
-            position:
-                "absolute",
+            position: "absolute",
             right: "28px",
             bottom: "25px",
             textAlign: "right",
@@ -2024,27 +1398,17 @@ function createHUD() {
         }
     );
 
-    hud.appendChild(
-        weaponBox
-    );
-
-    /*
-    SCORE
-    */
+    hud.appendChild(weaponBox);
 
     const score =
-        document.createElement(
-            "div"
-        );
+        document.createElement("div");
 
-    score.id =
-        "novaScoreBox";
+    score.id = "novaScoreBox";
 
     Object.assign(
         score.style,
         {
-            position:
-                "absolute",
+            position: "absolute",
             right: "28px",
             top: "20px",
             textAlign: "right",
@@ -2056,27 +1420,17 @@ function createHUD() {
         }
     );
 
-    hud.appendChild(
-        score
-    );
-
-    /*
-    RELOAD
-    */
+    hud.appendChild(score);
 
     const reload =
-        document.createElement(
-            "div"
-        );
+        document.createElement("div");
 
-    reload.id =
-        "novaReloadBox";
+    reload.id = "novaReloadBox";
 
     Object.assign(
         reload.style,
         {
-            position:
-                "absolute",
+            position: "absolute",
             left: "50%",
             bottom: "23%",
             transform:
@@ -2088,49 +1442,30 @@ function createHUD() {
         }
     );
 
-    hud.appendChild(
-        reload
-    );
-
-    /*
-    KILL FEED
-    */
+    hud.appendChild(reload);
 
     const feed =
-        document.createElement(
-            "div"
-        );
+        document.createElement("div");
 
-    feed.id =
-        "novaKillFeed";
+    feed.id = "novaKillFeed";
 
     Object.assign(
         feed.style,
         {
-            position:
-                "absolute",
+            position: "absolute",
             right: "25px",
             top: "105px",
-            width: "300px",
+            width: "390px",
             textAlign: "right"
         }
     );
 
-    hud.appendChild(
-        feed
-    );
+    hud.appendChild(feed);
 
     updateHUD();
 }
 
-/*
-============================================================
- HUD UPDATE
-============================================================
-*/
-
 function updateHUD() {
-
     const h =
         document.getElementById(
             "novaHealthBox"
@@ -2147,39 +1482,23 @@ function updateHUD() {
         );
 
     if (h) {
-
         h.innerHTML =
-            `♥ ${Math.max(
-                0,
-                health
-            )} HP`;
+            `♥ ${Math.max(0, health)} HP`;
     }
 
     if (w) {
-
-        if (
-            currentWeapon ===
-            "knife"
-        ) {
-
+        if (currentWeapon === "knife") {
             w.innerHTML =
                 `<div style="font-size:18px;opacity:.8">
                     COMBAT KNIFE
                 </div>`;
-
         } else {
-
             w.innerHTML =
                 `<div style="font-size:18px;opacity:.8">
-                    ${weapons[
-                        currentWeapon
-                    ].name}
+                    ${weapons[currentWeapon].name}
                 </div>
-
                 <div style="font-size:34px">
-                    ${ammo[
-                        currentWeapon
-                    ]}
+                    ${ammo[currentWeapon]}
                     <span style="opacity:.65">
                         / ∞
                     </span>
@@ -2188,7 +1507,6 @@ function updateHUD() {
     }
 
     if (s) {
-
         s.innerHTML =
             `KILLS ${kills}<br>
              DEATHS ${deaths}<br>
@@ -2196,70 +1514,35 @@ function updateHUD() {
     }
 }
 
-/*
-============================================================
- CONTROLS
-============================================================
-*/
+/* =========================================================
+   CONTROLS
+========================================================= */
 
 function setupControls() {
-
     document.addEventListener(
         "keydown",
         e => {
+            keys[e.code] = true;
 
-            keys[e.code] =
-                true;
+            if (e.code === "Digit1")
+                switchWeapon("ak");
 
-            if (
-                e.code ===
-                "Digit1"
-            ) {
+            if (e.code === "Digit2")
+                switchWeapon("pistol");
 
-                switchWeapon(
-                    "ak"
-                );
-            }
+            if (e.code === "Digit3")
+                switchWeapon("knife");
 
-            if (
-                e.code ===
-                "Digit2"
-            ) {
-
-                switchWeapon(
-                    "pistol"
-                );
-            }
-
-            if (
-                e.code ===
-                "Digit3"
-            ) {
-
-                switchWeapon(
-                    "knife"
-                );
-            }
-
-            if (
-                e.code ===
-                "KeyR"
-            ) {
-
+            if (e.code === "KeyR")
                 reload();
-            }
 
             if (
-                e.code ===
-                "Space" &&
+                e.code === "Space" &&
                 !isDead &&
                 player &&
-                player.position.y <=
-                    1.73
+                player.position.y <= 1.75
             ) {
-
-                velocityY =
-                    8.5;
+                velocityY = 8.5;
             }
         }
     );
@@ -2267,31 +1550,26 @@ function setupControls() {
     document.addEventListener(
         "keyup",
         e => {
-
-            keys[e.code] =
-                false;
+            keys[e.code] = false;
         }
     );
 
     document.addEventListener(
         "mousedown",
         e => {
-
             if (
                 e.button !== 0 ||
                 isDead
             )
                 return;
 
-            mouseDown =
-                true;
+            mouseDown = true;
 
             if (
                 renderer &&
                 document.pointerLockElement !==
                     renderer.domElement
             ) {
-
                 renderer.domElement.requestPointerLock();
             }
 
@@ -2302,21 +1580,14 @@ function setupControls() {
     document.addEventListener(
         "mouseup",
         e => {
-
-            if (
-                e.button === 0
-            ) {
-
-                mouseDown =
-                    false;
-            }
+            if (e.button === 0)
+                mouseDown = false;
         }
     );
 
     document.addEventListener(
         "mousemove",
         e => {
-
             if (
                 isDead ||
                 document.pointerLockElement !==
@@ -2324,13 +1595,8 @@ function setupControls() {
             )
                 return;
 
-            yaw -=
-                e.movementX *
-                0.002;
-
-            pitch -=
-                e.movementY *
-                0.002;
+            yaw -= e.movementX * 0.002;
+            pitch -= e.movementY * 0.002;
 
             pitch =
                 THREE.MathUtils.clamp(
@@ -2339,67 +1605,43 @@ function setupControls() {
                     1.5
                 );
 
-            player.rotation.y =
-                yaw;
-
-            camera.rotation.x =
-                pitch;
+            player.rotation.y = yaw;
+            camera.rotation.x = pitch;
         }
     );
 }
 
-/*
-============================================================
- MOVEMENT
-============================================================
-*/
+/* =========================================================
+   MOVEMENT
+========================================================= */
 
-function updateMovement(
-    delta
-) {
-
-    if (
-        !player ||
-        isDead
-    )
+function updateMovement(delta) {
+    if (!player || isDead)
         return;
 
     const direction =
         new THREE.Vector3();
 
-    if (
-        keys["KeyW"]
-    )
+    if (keys["KeyW"])
         direction.z -= 1;
 
-    if (
-        keys["KeyS"]
-    )
+    if (keys["KeyS"])
         direction.z += 1;
 
-    if (
-        keys["KeyA"]
-    )
+    if (keys["KeyA"])
         direction.x -= 1;
 
-    if (
-        keys["KeyD"]
-    )
+    if (keys["KeyD"])
         direction.x += 1;
 
     const moving =
-        direction.lengthSq() >
-        0;
+        direction.lengthSq() > 0;
 
     if (moving)
         direction.normalize();
 
     direction.applyAxisAngle(
-        new THREE.Vector3(
-            0,
-            1,
-            0
-        ),
+        new THREE.Vector3(0, 1, 0),
         yaw
     );
 
@@ -2409,13 +1651,8 @@ function updateMovement(
         keys["ShiftLeft"] ||
         keys["ShiftRight"]
     ) {
-
         speed = 10;
     }
-
-    /*
-    Ladder climbing
-    */
 
     const ladder =
         getNearbyLadder();
@@ -2427,29 +1664,20 @@ function updateMovement(
             keys["ArrowUp"]
         )
     ) {
-
         player.position.y +=
             4.5 * delta;
 
         player.position.y =
             Math.min(
-                ladder.height +
-                    1.7,
+                ladder.height + 1.7,
                 player.position.y
             );
 
         velocityY = 0;
-
     } else {
-
         moveWithCollision(
-            direction.x *
-                speed *
-                delta,
-
-            direction.z *
-                speed *
-                delta
+            direction.x * speed * delta,
+            direction.z * speed * delta
         );
 
         velocityY -=
@@ -2458,62 +1686,87 @@ function updateMovement(
         player.position.y +=
             velocityY * delta;
 
-        /*
-        Ground
-        */
+        const stairY =
+            getStairHeight();
 
-        if (
-            player.position.y <
-            1.7
-        ) {
-
+        if (stairY !== null) {
             player.position.y =
-                1.7;
+                THREE.MathUtils.lerp(
+                    player.position.y,
+                    stairY,
+                    Math.min(1, delta * 15)
+                );
 
+            velocityY = 0;
+        } else if (
+            player.position.y < 1.7
+        ) {
+            player.position.y = 1.7;
             velocityY = 0;
         }
     }
 
-    if (moving) {
-
+    if (moving)
         weaponBob +=
-            delta *
-            speed *
-            1.5;
-
-    } else {
-
-        weaponBob *=
-            0.9;
-    }
-
-    const bob =
-        moving
-            ? Math.sin(
-                weaponBob
-            ) * 0.012
-            : 0;
+            delta * speed * 1.5;
+    else
+        weaponBob *= 0.9;
 
     camera.position.y =
-        bob;
+        moving
+            ? Math.sin(weaponBob) * 0.012
+            : 0;
 }
 
-/*
-============================================================
- LADDER DETECTION
-============================================================
-*/
+/* =========================================================
+   STAIRS
+========================================================= */
 
-function getNearbyLadder() {
-
+function getStairHeight() {
     if (!player)
         return null;
 
-    for (
-        const ladder of
-        ladders
-    ) {
+    for (const stair of stairsAreas) {
+        if (
+            player.position.x >= stair.minX &&
+            player.position.x <= stair.maxX &&
+            player.position.z >= stair.minZ &&
+            player.position.z <= stair.maxZ
+        ) {
+            const progress =
+                THREE.MathUtils.clamp(
+                    (
+                        player.position.z -
+                        stair.minZ
+                    ) /
+                    (
+                        stair.maxZ -
+                        stair.minZ
+                    ),
+                    0,
+                    1
+                );
 
+            return THREE.MathUtils.lerp(
+                stair.startY,
+                stair.endY,
+                progress
+            );
+        }
+    }
+
+    return null;
+}
+
+/* =========================================================
+   LADDER
+========================================================= */
+
+function getNearbyLadder() {
+    if (!player)
+        return null;
+
+    for (const ladder of ladders) {
         const dx =
             player.position.x -
             ladder.x;
@@ -2528,56 +1781,31 @@ function getNearbyLadder() {
                 dz * dz
             );
 
-        if (
-            distance <
-            1.4
-        ) {
-
+        if (distance < 1.4)
             return ladder;
-        }
     }
 
     return null;
 }
 
-/*
-============================================================
- COLLISION
-============================================================
-*/
+/* =========================================================
+   COLLISION
+========================================================= */
 
-function moveWithCollision(
-    dx,
-    dz
-) {
-
-    const radius =
-        0.5;
+function moveWithCollision(dx, dz) {
+    const radius = 0.5;
 
     let nextX =
-        player.position.x +
-        dx;
+        player.position.x + dx;
 
     let nextZ =
-        player.position.z +
-        dz;
+        player.position.z + dz;
 
-    /*
-    X collision
-    */
-
-    for (
-        const wall of
-        obstacles
-    ) {
-
+    for (const wall of obstacles) {
         const closestX =
             Math.max(
                 wall.minX,
-                Math.min(
-                    nextX,
-                    wall.maxX
-                )
+                Math.min(nextX, wall.maxX)
             );
 
         const closestZ =
@@ -2590,8 +1818,7 @@ function moveWithCollision(
             );
 
         const distX =
-            nextX -
-            closestX;
+            nextX - closestX;
 
         const distZ =
             player.position.z -
@@ -2602,58 +1829,38 @@ function moveWithCollision(
             distZ * distZ <
             radius * radius
         ) {
-
             nextX =
                 player.position.x;
-
             break;
         }
     }
 
-    /*
-    Z collision
-    */
-
-    for (
-        const wall of
-        obstacles
-    ) {
-
+    for (const wall of obstacles) {
         const closestX =
             Math.max(
                 wall.minX,
-                Math.min(
-                    nextX,
-                    wall.maxX
-                )
+                Math.min(nextX, wall.maxX)
             );
 
         const closestZ =
             Math.max(
                 wall.minZ,
-                Math.min(
-                    nextZ,
-                    wall.maxZ
-                )
+                Math.min(nextZ, wall.maxZ)
             );
 
         const distX =
-            nextX -
-            closestX;
+            nextX - closestX;
 
         const distZ =
-            nextZ -
-            closestZ;
+            nextZ - closestZ;
 
         if (
             distX * distX +
             distZ * distZ <
             radius * radius
         ) {
-
             nextZ =
                 player.position.z;
-
             break;
         }
     }
@@ -2673,38 +1880,60 @@ function moveWithCollision(
         );
 }
 
-/*
-============================================================
- SWITCH WEAPON
-============================================================
-*/
+/* =========================================================
+   WEAPON SWITCH
+========================================================= */
 
-function switchWeapon(
-    weapon
-) {
-
+function switchWeapon(weapon) {
     if (
         reloading ||
         isDead
     )
         return;
 
-    currentWeapon =
-        weapon;
+    currentWeapon = weapon;
 
     createWeapon();
-
     updateHUD();
 }
 
-/*
-============================================================
- SHOOT
-============================================================
-*/
+/* =========================================================
+   SOUND
+========================================================= */
+
+function funnySound(text) {
+    try {
+        if (
+            !window.speechSynthesis
+        )
+            return;
+
+        window.speechSynthesis.cancel();
+
+        const voice =
+            new SpeechSynthesisUtterance(
+                text
+            );
+
+        voice.rate = 1.25;
+        voice.pitch = 1.4;
+        voice.volume = 0.7;
+
+        window.speechSynthesis.speak(
+            voice
+        );
+    } catch (e) {
+        console.warn(
+            "Sound unavailable"
+        );
+    }
+}
+
+/* =========================================================
+   SHOOT
+========================================================= */
 
 function shoot() {
-
     if (
         reloading ||
         isDead ||
@@ -2713,9 +1942,7 @@ function shoot() {
         return;
 
     const weapon =
-        weapons[
-            currentWeapon
-        ];
+        weapons[currentWeapon];
 
     const now =
         performance.now();
@@ -2726,100 +1953,68 @@ function shoot() {
     )
         return;
 
-    lastShot =
-        now;
+    lastShot = now;
 
-    if (
-        currentWeapon !==
-        "knife"
-    ) {
-
+    if (currentWeapon !== "knife") {
         if (
-            ammo[
-                currentWeapon
-            ] <= 0
+            ammo[currentWeapon] <= 0
         ) {
-
             reload();
-
             return;
         }
 
-        ammo[
-            currentWeapon
-        ]--;
+        ammo[currentWeapon]--;
 
         showAmmo();
 
         createMuzzleFlash();
-
         createShell();
 
-        weaponRecoil =
-            1;
+        weaponRecoil = 1;
+        weaponSwayY -= 0.035;
 
-        weaponSwayY -=
-            0.035;
+        if (currentWeapon === "ak") {
+            funnySound("UWU");
+        } else {
+            funnySound("pew");
+        }
 
         raycastDamage();
-
     } else {
-
         knifeAttack();
     }
 }
 
-/*
-============================================================
- AUTO FIRE
-============================================================
-*/
+/* =========================================================
+   AUTO FIRE
+========================================================= */
 
 function automaticFire() {
-
     if (
         mouseDown &&
-        currentWeapon ===
-            "ak" &&
+        currentWeapon === "ak" &&
         !isDead
     ) {
-
         shoot();
     }
 }
 
-/*
-============================================================
- RAYCAST DAMAGE
-============================================================
-*/
+/* =========================================================
+   RAYCAST
+========================================================= */
 
 function raycastDamage() {
-
     raycaster.setFromCamera(
-        new THREE.Vector2(
-            0,
-            0
-        ),
+        new THREE.Vector2(0, 0),
         camera
     );
 
     const targets =
-        Object.values(
-            remotePlayers
-        )
-        .filter(
-            p =>
-                !p.dead
-        )
-        .map(
-            p =>
-                p.object
-        );
+        Object.values(remotePlayers)
+            .filter(p => !p.dead)
+            .map(p => p.object);
 
-    if (
-        !targets.length
-    )
+    if (!targets.length)
         return;
 
     const hits =
@@ -2828,100 +2023,67 @@ function raycastDamage() {
             true
         );
 
-    if (
-        !hits.length
-    )
+    if (!hits.length)
         return;
 
-    let object =
-        hits[0].object;
+    const hit = hits[0];
 
-    const distance =
-        hits[0].distance;
-
-    if (
-        distance >
-        150
-    )
+    if (hit.distance > 150)
         return;
+
+    let object = hit.object;
 
     const headshot =
-        object.userData.hitbox ===
-        "head";
+        object.userData.hitbox === "head";
 
     while (
         object &&
         !object.userData.playerId
     ) {
-
-        object =
-            object.parent;
+        object = object.parent;
     }
 
     if (!object)
         return;
 
     const weapon =
-        weapons[
-            currentWeapon
-        ];
+        weapons[currentWeapon];
 
     const damage =
         headshot
             ? weapon.headshot
             : weapon.damage;
 
-    createHitMarker(
-        headshot
-    );
+    createHitMarker(headshot);
 
     if (socket) {
-
         socket.emit(
             "playerDamage",
             {
                 targetId:
                     object.userData.playerId,
-
                 damage,
-
                 headshot,
-
-                weapon:
-                    currentWeapon
+                weapon: currentWeapon
             }
         );
     }
 }
 
-/*
-============================================================
- KNIFE
-============================================================
-*/
+/* =========================================================
+   KNIFE
+========================================================= */
 
 function knifeAttack() {
-
     raycaster.setFromCamera(
-        new THREE.Vector2(
-            0,
-            0
-        ),
+        new THREE.Vector2(0, 0),
         camera
     );
 
     const targets =
-        Object.values(
-            remotePlayers
-        )
-        .filter(
-            p =>
-                !p.dead
-        )
-        .map(
-            p =>
-                p.object
-        );
+        Object.values(remotePlayers)
+            .filter(p => !p.dead)
+            .map(p => p.object);
 
     const hits =
         raycaster.intersectObjects(
@@ -2929,15 +2091,10 @@ function knifeAttack() {
             true
         );
 
-    if (
-        !hits.length
-    )
+    if (!hits.length)
         return;
 
-    if (
-        hits[0].distance >
-        3
-    )
+    if (hits[0].distance > 3)
         return;
 
     let object =
@@ -2947,71 +2104,54 @@ function knifeAttack() {
         object &&
         !object.userData.playerId
     ) {
-
-        object =
-            object.parent;
+        object = object.parent;
     }
 
     if (!object)
         return;
 
-    weaponRecoil =
-        0.6;
+    weaponRecoil = 0.6;
 
-    createHitMarker(
-        false
-    );
+    funnySound("bonk");
+
+    createHitMarker(false);
 
     if (socket) {
-
         socket.emit(
             "playerDamage",
             {
                 targetId:
                     object.userData.playerId,
-
                 damage: 100,
-
                 headshot: false,
-
-                weapon:
-                    "knife"
+                weapon: "knife"
             }
         );
     }
 }
 
-/*
-============================================================
- RELOAD
-============================================================
-*/
+/* =========================================================
+   RELOAD
+========================================================= */
 
 function reload() {
-
     if (
-        currentWeapon ===
-        "knife" ||
+        currentWeapon === "knife" ||
         reloading ||
         isDead
     )
         return;
 
     const weapon =
-        weapons[
-            currentWeapon
-        ];
+        weapons[currentWeapon];
 
     if (
-        ammo[
-            currentWeapon
-        ] >=
+        ammo[currentWeapon] >=
         weapon.magazine
     )
         return;
 
-    reloading =
-        true;
+    reloading = true;
 
     const box =
         document.getElementById(
@@ -3027,62 +2167,44 @@ function reload() {
 
     setTimeout(
         () => {
-
             if (isDead) {
-
-                reloading =
-                    false;
-
+                reloading = false;
                 return;
             }
 
-            ammo[
-                currentWeapon
-            ] =
+            ammo[currentWeapon] =
                 weapon.magazine;
 
-            reloading =
-                false;
+            reloading = false;
 
-            weaponRoot.rotation.x =
-                0;
+            weaponRoot.rotation.x = 0;
 
             if (box)
-                box.textContent =
-                    "";
+                box.textContent = "";
 
             updateHUD();
-
         },
         weapon.reload
     );
 }
 
-/*
-============================================================
- AMMO POPUP
-============================================================
-*/
+/* =========================================================
+   AMMO
+========================================================= */
 
 function showAmmo() {
-
     updateHUD();
 
     const popup =
-        document.createElement(
-            "div"
-        );
+        document.createElement("div");
 
     popup.textContent =
-        `${ammo[
-            currentWeapon
-        ]} / ∞`;
+        `${ammo[currentWeapon]} / ∞`;
 
     Object.assign(
         popup.style,
         {
-            position:
-                "fixed",
+            position: "fixed",
             right: "30px",
             bottom: "110px",
             fontSize: "28px",
@@ -3090,15 +2212,12 @@ function showAmmo() {
             color: "white",
             textShadow:
                 "0 2px 8px black",
-            pointerEvents:
-                "none",
+            pointerEvents: "none",
             zIndex: "150"
         }
     );
 
-    document.body.appendChild(
-        popup
-    );
+    document.body.appendChild(popup);
 
     setTimeout(
         () => popup.remove(),
@@ -3106,18 +2225,15 @@ function showAmmo() {
     );
 }
 
-/*
-============================================================
- MUZZLE FLASH
-============================================================
-*/
+/* =========================================================
+   MUZZLE FLASH
+========================================================= */
 
 function createMuzzleFlash() {
-
     const flash =
         new THREE.PointLight(
             0xffcc66,
-            8,
+            10,
             4
         );
 
@@ -3127,33 +2243,22 @@ function createMuzzleFlash() {
         -1.7
     );
 
-    weaponRoot.add(
-        flash
-    );
+    weaponRoot.add(flash);
 
     setTimeout(
-        () => {
-
-            weaponRoot.remove(
-                flash
-            );
-
-        },
+        () => weaponRoot.remove(flash),
         45
     );
 
     const mesh =
         new THREE.Mesh(
-
             new THREE.SphereGeometry(
-                0.12,
+                0.14,
                 8,
                 8
             ),
-
             new THREE.MeshBasicMaterial({
-                color:
-                    0xffdd88
+                color: 0xffdd88
             })
         );
 
@@ -3163,46 +2268,32 @@ function createMuzzleFlash() {
         -1.7
     );
 
-    weaponRoot.add(
-        mesh
-    );
+    weaponRoot.add(mesh);
 
     setTimeout(
-        () => {
-
-            weaponRoot.remove(
-                mesh
-            );
-
-        },
+        () => weaponRoot.remove(mesh),
         45
     );
 }
 
-/*
-============================================================
- SHELL
-============================================================
-*/
+/* =========================================================
+   SHELL
+========================================================= */
 
 function createShell() {
-
     if (
-        currentWeapon ===
-        "knife"
+        currentWeapon === "knife"
     )
         return;
 
     const shell =
         new THREE.Mesh(
-
             new THREE.CylinderGeometry(
                 0.025,
                 0.025,
                 0.12,
                 8
             ),
-
             material(
                 0xd49b32,
                 0.3,
@@ -3214,87 +2305,59 @@ function createShell() {
         player.position
     );
 
-    shell.position.y -=
-        0.15;
-
-    shell.position.x +=
-        0.25;
+    shell.position.y -= 0.15;
+    shell.position.x += 0.25;
 
     scene.add(shell);
 
     let life = 0;
 
-    const animate =
-        () => {
+    const animate = () => {
+        life += 0.016;
 
-            life +=
-                0.016;
+        shell.position.x += 0.025;
 
-            shell.position.x +=
-                0.025;
+        shell.position.y +=
+            0.02 -
+            life * 0.002;
 
-            shell.position.y +=
-                0.02 -
-                life * 0.002;
+        shell.position.z += 0.005;
 
-            shell.position.z +=
-                0.005;
+        shell.rotation.x += 0.2;
 
-            shell.rotation.x +=
-                0.2;
-
-            if (
-                life < 0.8
-            ) {
-
-                requestAnimationFrame(
-                    animate
-                );
-
-            } else {
-
-                scene.remove(
-                    shell
-                );
-            }
-        };
+        if (life < 0.8) {
+            requestAnimationFrame(
+                animate
+            );
+        } else {
+            scene.remove(shell);
+        }
+    };
 
     animate();
 }
 
-/*
-============================================================
- HIT MARKER
-============================================================
-*/
+/* =========================================================
+   HIT MARKER
+========================================================= */
 
-function createHitMarker(
-    headshot
-) {
-
+function createHitMarker(headshot) {
     const marker =
-        document.createElement(
-            "div"
-        );
+        document.createElement("div");
 
     marker.textContent =
-        headshot
-            ? "✦"
-            : "×";
+        headshot ? "✦" : "×";
 
     Object.assign(
         marker.style,
         {
-            position:
-                "fixed",
+            position: "fixed",
             left: "50%",
             top: "50%",
             transform:
                 "translate(-50%,-50%)",
             fontSize:
-                headshot
-                    ? "34px"
-                    : "26px",
+                headshot ? "34px" : "26px",
             fontWeight: "900",
             color:
                 headshot
@@ -3302,50 +2365,35 @@ function createHitMarker(
                     : "white",
             textShadow:
                 "0 2px 8px black",
-            pointerEvents:
-                "none",
+            pointerEvents: "none",
             zIndex: "200"
         }
     );
 
-    document.body.appendChild(
-        marker
-    );
+    document.body.appendChild(marker);
 
     setTimeout(
-        () =>
-            marker.remove(),
+        () => marker.remove(),
         180
     );
 }
 
-/*
-============================================================
- REMOTE PLAYER
-============================================================
-*/
+/* =========================================================
+   REMOTE PLAYER
+========================================================= */
 
-function createRemotePlayer(
-    data
-) {
-
-    if (
-        !data ||
-        !data.id
-    )
+function createRemotePlayer(data) {
+    if (!data || !data.id)
         return;
 
     if (
         socket &&
-        data.id ===
-            socket.id
+        data.id === socket.id
     )
         return;
 
     if (
-        remotePlayers[
-            data.id
-        ]
+        remotePlayers[data.id]
     )
         return;
 
@@ -3355,60 +2403,42 @@ function createRemotePlayer(
     group.userData.playerId =
         data.id;
 
-    /*
-    BODY
-    */
-
     const body =
         new THREE.Mesh(
-
             new THREE.BoxGeometry(
                 0.7,
                 1.05,
                 0.42
             ),
-
             material(
                 0x2274c4,
                 0.65
             )
         );
 
-    body.position.y =
-        1.0;
-
-    body.castShadow =
-        true;
+    body.position.y = 1.0;
+    body.castShadow = true;
 
     body.userData.playerId =
         data.id;
 
     group.add(body);
 
-    /*
-    HEAD
-    */
-
     const head =
         new THREE.Mesh(
-
             new THREE.SphereGeometry(
                 0.3,
                 20,
                 16
             ),
-
             material(
                 0xe6b789,
                 0.75
             )
         );
 
-    head.position.y =
-        1.72;
-
-    head.castShadow =
-        true;
+    head.position.y = 1.72;
+    head.castShadow = true;
 
     head.userData.playerId =
         data.id;
@@ -3418,10 +2448,6 @@ function createRemotePlayer(
 
     group.add(head);
 
-    /*
-    LEGS
-    */
-
     const legMaterial =
         material(
             0x171c25,
@@ -3429,21 +2455,15 @@ function createRemotePlayer(
         );
 
     for (
-        const x of [
-            -0.19,
-            0.19
-        ]
+        const x of [-0.19, 0.19]
     ) {
-
         const leg =
             new THREE.Mesh(
-
                 new THREE.BoxGeometry(
                     0.23,
                     0.75,
                     0.28
                 ),
-
                 legMaterial
             );
 
@@ -3453,32 +2473,21 @@ function createRemotePlayer(
             0
         );
 
-        leg.castShadow =
-            true;
+        leg.castShadow = true;
 
         group.add(leg);
     }
 
-    /*
-    ARMS
-    */
-
     for (
-        const x of [
-            -0.48,
-            0.48
-        ]
+        const x of [-0.48, 0.48]
     ) {
-
         const arm =
             new THREE.Mesh(
-
                 new THREE.BoxGeometry(
                     0.2,
                     0.85,
                     0.22
                 ),
-
                 material(
                     0x1d66aa,
                     0.7
@@ -3499,19 +2508,13 @@ function createRemotePlayer(
         group.add(arm);
     }
 
-    /*
-    GUN
-    */
-
     const gun =
         new THREE.Mesh(
-
             new THREE.BoxGeometry(
                 0.12,
                 0.12,
                 0.7
             ),
-
             material(
                 0x111419,
                 0.3,
@@ -3527,96 +2530,57 @@ function createRemotePlayer(
 
     group.add(gun);
 
-    /*
-    NAMETAG
-    */
-
     const tag =
         createNameTag(
             data.username ||
             "Player"
         );
 
-    tag.position.y =
-        2.35;
+    tag.position.y = 2.35;
 
     group.add(tag);
 
-    /*
-    POSITION
-    */
-
     group.position.set(
         Number(data.x) || 0,
-        0,
+        Number(data.y) || 0,
         Number(data.z) || 0
     );
 
     group.rotation.y =
-        Number(
-            data.rotationY
-        ) || 0;
+        Number(data.rotationY) || 0;
 
     scene.add(group);
 
-    remotePlayers[
-        data.id
-    ] = {
-
+    remotePlayers[data.id] = {
         object: group,
-
         username:
             data.username ||
             "Player",
-
-        dead: false,
-
-        lastX:
-            group.position.x,
-
-        lastZ:
-            group.position.z
+        dead: false
     };
 }
 
-/*
-============================================================
- NAMETAG
-============================================================
-*/
+/* =========================================================
+   NAMETAG
+========================================================= */
 
-function createNameTag(
-    text
-) {
-
+function createNameTag(text) {
     const canvas =
-        document.createElement(
-            "canvas"
-        );
+        document.createElement("canvas");
 
-    canvas.width =
-        512;
-
-    canvas.height =
-        128;
+    canvas.width = 512;
+    canvas.height = 128;
 
     const ctx =
-        canvas.getContext(
-            "2d"
-        );
+        canvas.getContext("2d");
 
     ctx.font =
         "bold 48px Arial";
 
-    ctx.textAlign =
-        "center";
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
 
-    ctx.textBaseline =
-        "middle";
-
-    ctx.lineWidth =
-        14;
-
+    ctx.lineWidth = 14;
     ctx.strokeStyle =
         "rgba(0,0,0,.9)";
 
@@ -3626,8 +2590,7 @@ function createNameTag(
         64
     );
 
-    ctx.fillStyle =
-        "white";
+    ctx.fillStyle = "white";
 
     ctx.fillText(
         text,
@@ -3645,7 +2608,6 @@ function createNameTag(
 
     const sprite =
         new THREE.Sprite(
-
             new THREE.SpriteMaterial({
                 map: texture,
                 transparent: true,
@@ -3662,16 +2624,11 @@ function createNameTag(
     return sprite;
 }
 
-/*
-============================================================
- REMOVE REMOTE PLAYER
-============================================================
-*/
+/* =========================================================
+   REMOTE PLAYER MANAGEMENT
+========================================================= */
 
-function removeRemotePlayer(
-    id
-) {
-
+function removeRemotePlayer(id) {
     const remote =
         remotePlayers[id];
 
@@ -3685,146 +2642,86 @@ function removeRemotePlayer(
     delete remotePlayers[id];
 }
 
-/*
-============================================================
- HIDE DEAD REMOTE PLAYER
-============================================================
-*/
-
-function hideRemotePlayer(
-    id
-) {
-
+function hideRemotePlayer(id) {
     const remote =
         remotePlayers[id];
 
     if (!remote)
         return;
 
-    remote.dead =
-        true;
-
-    remote.object.visible =
-        false;
+    remote.dead = true;
+    remote.object.visible = false;
 }
-
-/*
-============================================================
- RESPAWN REMOTE PLAYER
-============================================================
-*/
 
 function showRemotePlayer(
     id,
     data
 ) {
-
     const remote =
         remotePlayers[id];
 
     if (!remote)
         return;
 
-    remote.dead =
-        false;
-
-    remote.object.visible =
-        true;
+    remote.dead = false;
+    remote.object.visible = true;
 
     if (data) {
-
-        remote.object.position.x =
-            Number(data.x) || 0;
-
-        remote.object.position.z =
-            Number(data.z) || 0;
+        remote.object.position.set(
+            Number(data.x) || 0,
+            Number(data.y) || 0,
+            Number(data.z) || 0
+        );
     }
 }
 
-/*
-============================================================
- UPDATE REMOTE
-============================================================
-*/
-
-function updateRemotePlayer(
-    data
-) {
-
-    if (
-        !data ||
-        !data.id
-    )
+function updateRemotePlayer(data) {
+    if (!data || !data.id)
         return;
 
     if (
-        !remotePlayers[
-            data.id
-        ]
+        !remotePlayers[data.id]
     ) {
-
-        createRemotePlayer(
-            data
-        );
-
+        createRemotePlayer(data);
         return;
     }
 
     const remote =
-        remotePlayers[
-            data.id
-        ];
+        remotePlayers[data.id];
 
-    if (
-        remote.dead
-    )
+    if (remote.dead)
         return;
-
-    remote.lastX =
-        remote.object.position.x;
-
-    remote.lastZ =
-        remote.object.position.z;
 
     remote.object.position.x =
         Number(data.x) || 0;
+
+    remote.object.position.y =
+        Number(data.y) || 0;
 
     remote.object.position.z =
         Number(data.z) || 0;
 
     remote.object.rotation.y =
-        Number(
-            data.rotationY
-        ) || 0;
+        Number(data.rotationY) || 0;
 }
 
-/*
-============================================================
- SOCKET
-============================================================
-*/
+/* =========================================================
+   SOCKET
+========================================================= */
 
 function setupSocket() {
-
-    if (
-        typeof io ===
-        "undefined"
-    ) {
-
+    if (typeof io === "undefined") {
         console.error(
             "Socket.IO unavailable."
         );
-
         return;
     }
 
-    socket =
-        io();
+    socket = io();
 
     socket.on(
         "connect",
         () => {
-
             console.log(
                 "NovaStrike connected:",
                 socket.id
@@ -3845,7 +2742,6 @@ function setupSocket() {
     socket.on(
         "players",
         players => {
-
             if (!players)
                 return;
 
@@ -3853,16 +2749,11 @@ function setupSocket() {
                 players
             ).forEach(
                 ([id, data]) => {
-
                     if (
-                        id !==
-                        socket.id
+                        id !== socket.id
                     ) {
-
                         createRemotePlayer({
-
                             id,
-
                             ...data
                         });
                     }
@@ -3874,46 +2765,28 @@ function setupSocket() {
     socket.on(
         "playerJoined",
         data => {
-
-            createRemotePlayer(
-                data
-            );
+            createRemotePlayer(data);
         }
     );
 
     socket.on(
         "playerMoved",
         data => {
-
-            updateRemotePlayer(
-                data
-            );
+            updateRemotePlayer(data);
         }
     );
 
     socket.on(
         "playerLeft",
         id => {
-
-            removeRemotePlayer(
-                id
-            );
+            removeRemotePlayer(id);
         }
     );
-
-    /*
-    Enemy death
-    */
 
     socket.on(
         "playerDied",
         data => {
-
-            if (
-                data &&
-                data.id
-            ) {
-
+            if (data && data.id) {
                 hideRemotePlayer(
                     data.id
                 );
@@ -3921,19 +2794,10 @@ function setupSocket() {
         }
     );
 
-    /*
-    Enemy respawn
-    */
-
     socket.on(
         "playerRespawned",
         data => {
-
-            if (
-                data &&
-                data.id
-            ) {
-
+            if (data && data.id) {
                 showRemotePlayer(
                     data.id,
                     data
@@ -3942,71 +2806,78 @@ function setupSocket() {
         }
     );
 
-    /*
-    Damage
-    */
-
     socket.on(
         "damageTaken",
         data => {
-
             if (!data)
                 return;
 
             takeDamage(
-                Number(
-                    data.damage
-                ) || 0
+                Number(data.damage) || 0
             );
         }
     );
 
     /*
-    Kill
-    */
-
+     * Server tells us who killed whom.
+     */
     socket.on(
         "killConfirmed",
-        () => {
-
+        data => {
             kills++;
-
             streak++;
 
             updateHUD();
 
+            if (
+                data &&
+                data.victim
+            ) {
+                showKillFeed(
+                    `YOU eliminated ${data.victim}`
+                );
+            } else {
+                showKillFeed(
+                    "YOU eliminated a player"
+                );
+            }
+        }
+    );
+
+    /*
+     * Server sends the death message.
+     */
+    socket.on(
+        "deathMessage",
+        data => {
+            if (!data)
+                return;
+
             showKillFeed(
-                "ELIMINATION"
+                `${data.victim} suck so bad that they died to ${data.killer}`
             );
         }
     );
 
     /*
-    Respawn
-    */
-
+     * Server can force respawn.
+     */
     socket.on(
         "respawn",
         data => {
-
             if (!isDead)
                 return;
 
-            finishRespawn(
-                data
-            );
+            finishRespawn(data);
         }
     );
 }
 
-/*
-============================================================
- USERNAME
-============================================================
-*/
+/* =========================================================
+   USERNAME
+========================================================= */
 
 function getUsername() {
-
     return (
         localStorage.getItem(
             "novaUsername"
@@ -4015,14 +2886,11 @@ function getUsername() {
     );
 }
 
-/*
-============================================================
- SEND POSITION
-============================================================
-*/
+/* =========================================================
+   POSITION
+========================================================= */
 
 function sendPosition() {
-
     if (
         !socket ||
         !player ||
@@ -4033,85 +2901,54 @@ function sendPosition() {
     socket.emit(
         "playerMove",
         {
-            x:
-                player.position.x,
-
-            y:
-                player.position.y,
-
-            z:
-                player.position.z,
-
+            x: player.position.x,
+            y: player.position.y,
+            z: player.position.z,
             rotationY:
                 player.rotation.y,
-
             username:
                 getUsername()
         }
     );
 }
 
-/*
-============================================================
- DAMAGE
-============================================================
-*/
+/* =========================================================
+   DAMAGE
+========================================================= */
 
-function takeDamage(
-    damage
-) {
-
+function takeDamage(damage) {
     if (
         isDead ||
         respawnProtection
     )
         return;
 
-    health -=
-        damage;
+    health -= damage;
 
     health =
-        Math.max(
-            0,
-            health
-        );
+        Math.max(0, health);
 
     createDamageFlash();
 
     updateHUD();
 
-    if (
-        health <=
-        0
-    ) {
-
+    if (health <= 0) {
         die();
     }
 }
 
-/*
-============================================================
- DAMAGE FLASH
-============================================================
-*/
-
 function createDamageFlash() {
-
     const flash =
-        document.createElement(
-            "div"
-        );
+        document.createElement("div");
 
     Object.assign(
         flash.style,
         {
-            position:
-                "fixed",
+            position: "fixed",
             inset: "0",
             background:
                 "rgba(255,0,0,.22)",
-            pointerEvents:
-                "none",
+            pointerEvents: "none",
             zIndex: "180"
         }
     );
@@ -4121,202 +2958,61 @@ function createDamageFlash() {
     );
 
     setTimeout(
-        () =>
-            flash.remove(),
+        () => flash.remove(),
         120
     );
 }
 
-/*
-============================================================
- DIE
-============================================================
-*/
+/* =========================================================
+   DIE
+========================================================= */
 
-function die() {
-
+function die(data = {}) {
     if (isDead)
         return;
 
-    isDead =
-        true;
-
-    reloading =
-        false;
-
-    mouseDown =
-        false;
+    isDead = true;
+    reloading = false;
+    mouseDown = false;
 
     deaths++;
-
     streak = 0;
 
     updateHUD();
 
-    /*
-    Hide weapon
-    */
-
-    if (weaponRoot) {
-
-        weaponRoot.visible =
-            false;
-    }
-
-    /*
-    Unlock controls
-    */
+    if (weaponRoot)
+        weaponRoot.visible = false;
 
     if (
         document.pointerLockElement
     ) {
-
         document.exitPointerLock();
     }
 
-    /*
-    Tell server
-    */
-
     if (socket) {
-
         socket.emit(
             "playerDied"
         );
     }
 
     /*
-    Death screen
-    */
-
-    const deathScreen =
-        document.createElement(
-            "div"
-        );
-
-    deathScreen.id =
-        "novaDeathScreen";
-
-    deathScreen.innerHTML = `
-        <div style="
-            font-size:58px;
-            font-weight:900;
-            letter-spacing:5px;
-        ">
-            YOU DIED
-        </div>
-
-        <div id="novaRespawnTimer"
-             style="
-                margin-top:14px;
-                font-size:20px;
-                font-weight:700;
-                opacity:.85;
-             ">
-            RESPAWNING IN 3
-        </div>
-    `;
-
-    Object.assign(
-        deathScreen.style,
-        {
-            position:
-                "fixed",
-            inset: "0",
-            display:
-                "flex",
-            flexDirection:
-                "column",
-            alignItems:
-                "center",
-            justifyContent:
-                "center",
-            background:
-                "rgba(0,0,0,.62)",
-            color: "white",
-            pointerEvents:
-                "none",
-            zIndex: "500",
-            textShadow:
-                "0 3px 15px black"
-        }
-    );
-
-    document.body.appendChild(
-        deathScreen
-    );
-
-    let remaining =
-        3;
-
-    respawnTimer =
-        setInterval(
-            () => {
-
-                remaining--;
-
-                const timer =
-                    document.getElementById(
-                        "novaRespawnTimer"
-                    );
-
-                if (timer) {
-
-                    timer.textContent =
-                        remaining > 0
-                            ? `RESPAWNING IN ${remaining}`
-                            : "RESPAWNING...";
-                }
-
-                if (
-                    remaining <=
-                    0
-                ) {
-
-                    clearInterval(
-                        respawnTimer
-                    );
-
-                    respawnTimer =
-                        null;
-
-                    if (
-                        deathScreen
-                        .parentNode
-                    ) {
-
-                        deathScreen.remove();
-                    }
-
-                    finishRespawn();
-                }
-
-            },
-            1000
-        );
+     * No countdown.
+     * Respawn immediately.
+     */
+    finishRespawn({
+        x: data.x,
+        y: 1.7,
+        z: data.z
+    });
 }
 
-/*
-============================================================
- FINISH RESPAWN
-============================================================
-*/
+/* =========================================================
+   RESPAWN
+========================================================= */
 
-function finishRespawn(
-    data
-) {
-
+function finishRespawn(data) {
     if (!player)
         return;
-
-    if (
-        !isDead
-    )
-        return;
-
-    /*
-    Pick spawn
-    */
 
     const spawn =
         spawnPoints[
@@ -4325,12 +3021,6 @@ function finishRespawn(
                 spawnPoints.length
             )
         ];
-
-    /*
-    IMPORTANT:
-    Always place player at
-    ground level.
-    */
 
     player.position.set(
         data &&
@@ -4350,26 +3040,18 @@ function finishRespawn(
             : spawn.z
     );
 
-    velocityY =
-        0;
+    velocityY = 0;
 
-    health =
-        100;
-
-    isDead =
-        false;
-
-    respawnProtection =
-        true;
+    health = 100;
+    isDead = false;
 
     /*
-    Show weapon again
-    */
+     * 2 SECOND SPAWN PROTECTION
+     */
+    respawnProtection = true;
 
     if (weaponRoot) {
-
-        weaponRoot.visible =
-            true;
+        weaponRoot.visible = true;
 
         weaponRoot.rotation.set(
             0,
@@ -4378,51 +3060,28 @@ function finishRespawn(
         );
     }
 
-    /*
-    Give ammo back
-    */
-
     ammo.ak =
         weapons.ak.magazine;
 
     ammo.pistol =
         weapons.pistol.magazine;
 
-    /*
-    Reset camera
-    */
-
     pitch = 0;
-
-    camera.rotation.x =
-        0;
-
-    /*
-    Update HUD
-    */
+    camera.rotation.x = 0;
 
     updateHUD();
 
-    /*
-    One second spawn protection
-    */
+    showSpawnProtection();
 
     setTimeout(
         () => {
-
-            respawnProtection =
-                false;
-
+            respawnProtection = false;
+            hideSpawnProtection();
         },
-        1000
+        2000
     );
 
-    /*
-    Tell server
-    */
-
     if (socket) {
-
         socket.emit(
             "playerRespawned",
             {
@@ -4444,16 +3103,66 @@ function finishRespawn(
     sendPosition();
 }
 
-/*
-============================================================
- KILL FEED
-============================================================
-*/
+function showSpawnProtection() {
+    let el =
+        document.getElementById(
+            "novaSpawnProtection"
+        );
 
-function showKillFeed(
-    text
-) {
+    if (!el) {
+        el =
+            document.createElement(
+                "div"
+            );
 
+        el.id =
+            "novaSpawnProtection";
+
+        Object.assign(
+            el.style,
+            {
+                position: "fixed",
+                left: "50%",
+                top: "15%",
+                transform:
+                    "translateX(-50%)",
+                padding:
+                    "10px 18px",
+                borderRadius: "8px",
+                background:
+                    "rgba(20,100,255,.65)",
+                color: "white",
+                fontSize: "18px",
+                fontWeight: "900",
+                zIndex: "300",
+                pointerEvents: "none",
+                textShadow:
+                    "0 2px 6px black"
+            }
+        );
+
+        document.body.appendChild(el);
+    }
+
+    el.textContent =
+        "🛡️ SPAWN PROTECTION";
+}
+
+function hideSpawnProtection() {
+    const el =
+        document.getElementById(
+            "novaSpawnProtection"
+        );
+
+    if (el)
+        el.remove();
+}
+
+/* =========================================================
+   KILL FEED
+========================================================= */
+
+function showKillFeed(text) {
     const feed =
         document.getElementById(
             "novaKillFeed"
@@ -4463,54 +3172,38 @@ function showKillFeed(
         return;
 
     const item =
-        document.createElement(
-            "div"
-        );
+        document.createElement("div");
 
     item.textContent =
-        "⚡ " +
-        text;
+        "⚡ " + text;
 
     Object.assign(
         item.style,
         {
-            marginBottom:
-                "8px",
+            marginBottom: "8px",
             padding:
                 "8px 12px",
             background:
-                "rgba(0,0,0,.45)",
-            borderRadius:
-                "5px",
-            fontWeight:
-                "900"
+                "rgba(0,0,0,.55)",
+            borderRadius: "5px",
+            fontWeight: "900"
         }
     );
 
-    feed.appendChild(
-        item
-    );
+    feed.appendChild(item);
 
     setTimeout(
-        () =>
-            item.remove(),
-        2500
+        () => item.remove(),
+        3500
     );
 }
 
-/*
-============================================================
- WEAPON ANIMATION
-============================================================
-*/
+/* =========================================================
+   WEAPON ANIMATION
+========================================================= */
 
-function updateWeapon(
-    delta
-) {
-
-    if (
-        !weaponRoot
-    )
+function updateWeapon(delta) {
+    if (!weaponRoot)
         return;
 
     weaponRecoil =
@@ -4528,193 +3221,99 @@ function updateWeapon(
         );
 
     const bobX =
-        Math.cos(
-            weaponBob
-        ) *
+        Math.cos(weaponBob) *
         0.012;
 
     const bobY =
         Math.abs(
-            Math.sin(
-                weaponBob
-            )
+            Math.sin(weaponBob)
         ) *
         0.012;
 
     weaponRoot.position.x =
-        0.48 +
-        bobX +
-        weaponSwayX;
+        0.48 + bobX;
 
     weaponRoot.position.y =
-        -0.48 +
-        bobY;
+        -0.48 + bobY;
 
     weaponRoot.position.z =
         -0.8 +
-        weaponRecoil *
-        0.12;
+        weaponRecoil * 0.12;
 
     weaponRoot.rotation.x =
-        -weaponRecoil *
-        0.12;
+        -weaponRecoil * 0.12;
 
     weaponRoot.rotation.y =
         weaponSwayY;
 }
 
-/*
-============================================================
- REMOTE ANIMATION
-============================================================
-*/
+/* =========================================================
+   REMOTE ANIMATION
+========================================================= */
 
-function animateRemotePlayers(
-    delta
-) {
-
+function animateRemotePlayers(delta) {
     for (
         const remote of
-        Object.values(
-            remotePlayers
-        )
+        Object.values(remotePlayers)
     ) {
-
-        if (
-            remote.dead
-        )
+        if (remote.dead)
             continue;
 
         const object =
             remote.object;
 
-        const dx =
-            object.position.x -
-            remote.lastX;
-
-        const dz =
-            object.position.z -
-            remote.lastZ;
-
-        const moving =
-            Math.abs(dx) +
-            Math.abs(dz) >
-            0.01;
-
-        if (moving) {
-
-            object.position.y =
-                Math.sin(
-                    performance.now() *
-                    0.01
-                ) *
-                0.025;
-
-        } else {
-
-            object.position.y =
-                THREE.MathUtils.lerp(
-                    object.position.y,
-                    0,
-                    delta * 8
-                );
-        }
-
         /*
-        Nametag faces camera
-        */
+         * Keep players on their real network Y.
+         * No floating bobbing.
+         */
 
         for (
             const child of
             object.children
         ) {
-
-            if (
-                child.isSprite
-            ) {
-
+            if (child.isSprite) {
                 child.quaternion.copy(
                     camera.quaternion
                 );
             }
         }
-
-        remote.lastX =
-            object.position.x;
-
-        remote.lastZ =
-            object.position.z;
     }
 }
 
-/*
-============================================================
- NETWORK
-============================================================
-*/
+/* =========================================================
+   NETWORK
+========================================================= */
 
-function networkUpdate(
-    delta
-) {
+function networkUpdate(delta) {
+    networkTimer += delta;
 
-    networkTimer +=
-        delta;
-
-    if (
-        networkTimer >=
-        0.05
-    ) {
-
-        networkTimer =
-            0;
-
+    if (networkTimer >= 0.05) {
+        networkTimer = 0;
         sendPosition();
     }
 }
 
-/*
-============================================================
- GAME LOOP
-============================================================
-*/
+/* =========================================================
+   LOOP
+========================================================= */
 
-function loop(
-    time
-) {
-
-    requestAnimationFrame(
-        loop
-    );
+function loop(time) {
+    requestAnimationFrame(loop);
 
     const delta =
         Math.min(
-            (
-                time -
-                lastTime
-            ) / 1000,
+            (time - lastTime) /
+                1000,
             0.05
         );
 
-    lastTime =
-        time;
+    lastTime = time;
 
-    updateMovement(
-        delta
-    );
-
+    updateMovement(delta);
     automaticFire();
-
-    updateWeapon(
-        delta
-    );
-
-    animateRemotePlayers(
-        delta
-    );
-
-    networkUpdate(
-        delta
-    );
+    updateWeapon(delta);
+    animateRemotePlayers(delta);
+    networkUpdate(delta);
 
     renderer.render(
         scene,
@@ -4722,18 +3321,12 @@ function loop(
     );
 }
 
-/*
-============================================================
- RESIZE
-============================================================
-*/
+/* =========================================================
+   RESIZE
+========================================================= */
 
 function resize() {
-
-    if (
-        !camera ||
-        !renderer
-    )
+    if (!camera || !renderer)
         return;
 
     camera.aspect =
