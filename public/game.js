@@ -1,23 +1,16 @@
-// ============================================================
-// NOVASTRIKE
-// game.js
-// ============================================================
-
 import * as THREE from
     "https://cdn.jsdelivr.net/npm/three@0.180.0/build/three.module.js";
 
-
-// ============================================================
-// GLOBALS
-// ============================================================
+/* =========================================================
+   NOVASTRIKE
+   VISUAL UPGRADE
+========================================================= */
 
 let scene;
 let camera;
 let renderer;
-
 let player;
-
-let socket = null;
+let socket;
 
 let gameStarted = false;
 
@@ -39,34 +32,22 @@ let deaths = 0;
 let streak = 0;
 
 let reloading = false;
-
 let weaponModel = null;
 let weaponRecoil = 0;
-
 let velocityY = 0;
 
 const remotePlayers = {};
-
 const mapObstacles = [];
-
-
-// ============================================================
-// MAP
-// ============================================================
 
 const MAP_SIZE = 15;
 const TILE_SIZE = 4;
-
-const MAP_WORLD_SIZE =
-    MAP_SIZE * TILE_SIZE;
-
-const MAP_HALF =
-    MAP_WORLD_SIZE / 2;
+const MAP_WORLD_SIZE = MAP_SIZE * TILE_SIZE;
+const MAP_HALF = MAP_WORLD_SIZE / 2;
 
 
-// ============================================================
-// WEAPONS
-// ============================================================
+/* =========================================================
+   WEAPONS
+========================================================= */
 
 const weapons = {
 
@@ -91,7 +72,7 @@ const weapons = {
     },
 
     knife: {
-        name: "KNIFE",
+        name: "COMBAT KNIFE",
         magazine: 0,
         damage: 100,
         headshot: 100,
@@ -104,23 +85,18 @@ const weapons = {
 
 
 const ammo = {
-
     ak: 25,
-
     pistol: 12
-
 };
 
 
-// ============================================================
-// START GAME
-// ============================================================
+/* =========================================================
+   START
+========================================================= */
 
 window.loadThree = function () {
 
-    if (gameStarted) {
-        return;
-    }
+    if (gameStarted) return;
 
     gameStarted = true;
 
@@ -129,83 +105,63 @@ window.loadThree = function () {
 };
 
 
-// ============================================================
-// INITIALIZE
-// ============================================================
+/* =========================================================
+   INIT
+========================================================= */
 
 function initGame() {
 
-    console.log(
-        "Starting NovaStrike..."
-    );
-
-
-    // ========================================================
-    // SCENE
-    // ========================================================
-
-    scene =
-        new THREE.Scene();
+    scene = new THREE.Scene();
 
     scene.background =
-        new THREE.Color(
-            0x5b6675
+        new THREE.Color(0x8794a5);
+
+
+    scene.fog =
+        new THREE.Fog(
+            0x8794a5,
+            45,
+            120
         );
 
 
-    // ========================================================
-    // CAMERA
-    // ========================================================
+    /* =====================================================
+       CAMERA
+    ===================================================== */
 
     camera =
         new THREE.PerspectiveCamera(
             75,
             window.innerWidth /
                 window.innerHeight,
-            0.1,
+            0.05,
             1000
         );
 
 
-    camera.position.set(
-        0,
-        0,
-        0
-    );
-
-
-    // ========================================================
-    // PLAYER
-    // ========================================================
+    /* =====================================================
+       PLAYER
+    ===================================================== */
 
     player =
         new THREE.Object3D();
 
-
     player.position.set(
         0,
-        1.7,
+        1.65,
         5
     );
 
+    player.rotation.order = "YXZ";
 
-    player.rotation.order =
-        "YXZ";
+    scene.add(player);
 
-
-    scene.add(
-        player
-    );
+    player.add(camera);
 
 
-    player.add(
-        camera
-    );
-
-
-    // ========================================================
-    // RENDERER
-    // ========================================================
+    /* =====================================================
+       RENDERER
+    ===================================================== */
 
     renderer =
         new THREE.WebGLRenderer({
@@ -227,24 +183,21 @@ function initGame() {
     );
 
 
-    renderer.domElement.style.display =
-        "block";
+    renderer.shadowMap.enabled = true;
+
+    renderer.shadowMap.type =
+        THREE.PCFSoftShadowMap;
+
+    renderer.outputColorSpace =
+        THREE.SRGBColorSpace;
 
 
-    renderer.domElement.style.width =
-        "100%";
+    renderer.toneMapping =
+        THREE.ACESFilmicToneMapping;
 
+    renderer.toneMappingExposure =
+        1.15;
 
-    renderer.domElement.style.height =
-        "100%";
-
-
-    renderer.domElement.tabIndex =
-        0;
-
-
-    // IMPORTANT:
-    // Put canvas inside game-screen
 
     const gameScreen =
         document.getElementById(
@@ -270,79 +223,47 @@ function initGame() {
     }
 
 
-    // ========================================================
-    // LIGHTING
-    // ========================================================
+    /* =====================================================
+       LIGHTING
+    ===================================================== */
 
-    const ambient =
-        new THREE.AmbientLight(
-            0xffffff,
-            1.2
-        );
+    createLighting();
 
 
-    scene.add(
-        ambient
-    );
-
-
-    const sunlight =
-        new THREE.DirectionalLight(
-            0xffffff,
-            1.5
-        );
-
-
-    sunlight.position.set(
-        20,
-        30,
-        10
-    );
-
-
-    scene.add(
-        sunlight
-    );
-
-
-    // ========================================================
-    // MAP
-    // ========================================================
+    /* =====================================================
+       MAP
+    ===================================================== */
 
     createMap();
 
 
-    // ========================================================
-    // WEAPON
-    // ========================================================
+    /* =====================================================
+       WEAPON
+    ===================================================== */
 
     createWeapon();
 
 
-    // ========================================================
-    // HUD
-    // ========================================================
+    /* =====================================================
+       HUD
+    ===================================================== */
 
     createHUD();
 
 
-    // ========================================================
-    // CONTROLS
-    // ========================================================
+    /* =====================================================
+       CONTROLS
+    ===================================================== */
 
     setupControls();
 
 
-    // ========================================================
-    // MULTIPLAYER
-    // ========================================================
+    /* =====================================================
+       SOCKET
+    ===================================================== */
 
     setupSocket();
 
-
-    // ========================================================
-    // RESIZE
-    // ========================================================
 
     window.addEventListener(
         "resize",
@@ -354,11 +275,6 @@ function initGame() {
         performance.now();
 
 
-    console.log(
-        "NovaStrike initialized."
-    );
-
-
     requestAnimationFrame(
         gameLoop
     );
@@ -366,35 +282,101 @@ function initGame() {
 }
 
 
-// ============================================================
-// MAP
-// ============================================================
+/* =========================================================
+   LIGHTING
+========================================================= */
+
+function createLighting() {
+
+    const ambient =
+        new THREE.HemisphereLight(
+            0xdce9ff,
+            0x26303a,
+            2.0
+        );
+
+    scene.add(ambient);
+
+
+    const sun =
+        new THREE.DirectionalLight(
+            0xffffff,
+            3
+        );
+
+
+    sun.position.set(
+        20,
+        35,
+        10
+    );
+
+
+    sun.castShadow = true;
+
+
+    sun.shadow.mapSize.width =
+        2048;
+
+    sun.shadow.mapSize.height =
+        2048;
+
+
+    sun.shadow.camera.left =
+        -70;
+
+    sun.shadow.camera.right =
+        70;
+
+    sun.shadow.camera.top =
+        70;
+
+    sun.shadow.camera.bottom =
+        -70;
+
+
+    scene.add(sun);
+
+}
+
+
+/* =========================================================
+   MAP
+========================================================= */
 
 function createMap() {
 
-    const mapSize =
+    const size =
         MAP_WORLD_SIZE;
 
 
-    // ========================================================
-    // GROUND
-    // ========================================================
+    /* =====================================================
+       GROUND
+    ===================================================== */
+
+    const groundMaterial =
+        new THREE.MeshStandardMaterial({
+
+            color: 0x3d4650,
+
+            roughness: 0.88,
+
+            metalness: 0.05
+
+        });
+
 
     const ground =
         new THREE.Mesh(
+
             new THREE.BoxGeometry(
-                mapSize,
+                size,
                 1,
-                mapSize
+                size
             ),
 
-            new THREE.MeshStandardMaterial({
-                color:
-                    0x303844,
+            groundMaterial
 
-                roughness:
-                    0.85
-            })
         );
 
 
@@ -402,20 +384,28 @@ function createMap() {
         -0.5;
 
 
-    scene.add(
-        ground
-    );
+    ground.receiveShadow = true;
 
 
-    // ========================================================
-    // OUTER WALLS
-    // ========================================================
+    scene.add(ground);
+
+
+    /* =====================================================
+       FLOOR TILES
+    ===================================================== */
+
+    createFloorTiles();
+
+
+    /* =====================================================
+       OUTER WALLS
+    ===================================================== */
 
     createWall(
         0,
         2.5,
         -MAP_HALF,
-        mapSize,
+        size,
         5,
         1
     );
@@ -425,7 +415,7 @@ function createMap() {
         0,
         2.5,
         MAP_HALF,
-        mapSize,
+        size,
         5,
         1
     );
@@ -437,7 +427,7 @@ function createMap() {
         0,
         1,
         5,
-        mapSize
+        size
     );
 
 
@@ -447,15 +437,15 @@ function createMap() {
         0,
         1,
         5,
-        mapSize
+        size
     );
 
 
-    // ========================================================
-    // COVER
-    // ========================================================
+    /* =====================================================
+       COVER
+    ===================================================== */
 
-    createWall(
+    createDetailedWall(
         -18,
         1.5,
         -12,
@@ -465,7 +455,7 @@ function createMap() {
     );
 
 
-    createWall(
+    createDetailedWall(
         18,
         1.5,
         -12,
@@ -475,7 +465,7 @@ function createMap() {
     );
 
 
-    createWall(
+    createDetailedWall(
         -18,
         1.5,
         12,
@@ -485,7 +475,7 @@ function createMap() {
     );
 
 
-    createWall(
+    createDetailedWall(
         18,
         1.5,
         12,
@@ -495,11 +485,11 @@ function createMap() {
     );
 
 
-    // ========================================================
-    // CENTER COVER
-    // ========================================================
+    /* =====================================================
+       CENTER STRUCTURES
+    ===================================================== */
 
-    createWall(
+    createDetailedWall(
         -8,
         1.5,
         0,
@@ -509,7 +499,7 @@ function createMap() {
     );
 
 
-    createWall(
+    createDetailedWall(
         8,
         1.5,
         0,
@@ -519,11 +509,11 @@ function createMap() {
     );
 
 
-    // ========================================================
-    // SMALL BLOCKS
-    // ========================================================
+    /* =====================================================
+       SMALL COVER
+    ===================================================== */
 
-    createWall(
+    createDetailedWall(
         -15,
         1,
         -5,
@@ -533,7 +523,7 @@ function createMap() {
     );
 
 
-    createWall(
+    createDetailedWall(
         15,
         1,
         5,
@@ -543,7 +533,7 @@ function createMap() {
     );
 
 
-    createWall(
+    createDetailedWall(
         -15,
         1,
         5,
@@ -553,7 +543,7 @@ function createMap() {
     );
 
 
-    createWall(
+    createDetailedWall(
         15,
         1,
         -5,
@@ -565,9 +555,65 @@ function createMap() {
 }
 
 
-// ============================================================
-// WALL
-// ============================================================
+/* =========================================================
+   FLOOR TILES
+========================================================= */
+
+function createFloorTiles() {
+
+    const material =
+        new THREE.MeshStandardMaterial({
+            color: 0x505a66,
+            roughness: 0.95
+        });
+
+
+    for (
+        let x = -7;
+        x <= 7;
+        x++
+    ) {
+
+        for (
+            let z = -7;
+            z <= 7;
+            z++
+        ) {
+
+            const tile =
+                new THREE.Mesh(
+                    new THREE.BoxGeometry(
+                        TILE_SIZE - 0.08,
+                        0.035,
+                        TILE_SIZE - 0.08
+                    ),
+                    material
+                );
+
+
+            tile.position.set(
+                x * TILE_SIZE,
+                0.02,
+                z * TILE_SIZE
+            );
+
+
+            tile.receiveShadow =
+                true;
+
+
+            scene.add(tile);
+
+        }
+
+    }
+
+}
+
+
+/* =========================================================
+   WALL
+========================================================= */
 
 function createWall(
     x,
@@ -578,21 +624,57 @@ function createWall(
     depth
 ) {
 
+    createDetailedWall(
+        x,
+        y,
+        z,
+        width,
+        height,
+        depth
+    );
+
+}
+
+
+/* =========================================================
+   DETAILED WALL
+========================================================= */
+
+function createDetailedWall(
+    x,
+    y,
+    z,
+    width,
+    height,
+    depth
+) {
+
+    const material =
+        new THREE.MeshStandardMaterial({
+
+            color:
+                0x596572,
+
+            roughness:
+                0.72,
+
+            metalness:
+                0.08
+
+        });
+
+
     const wall =
         new THREE.Mesh(
+
             new THREE.BoxGeometry(
                 width,
                 height,
                 depth
             ),
 
-            new THREE.MeshStandardMaterial({
-                color:
-                    0x46515f,
+            material
 
-                roughness:
-                    0.75
-            })
         );
 
 
@@ -603,9 +685,12 @@ function createWall(
     );
 
 
-    scene.add(
-        wall
-    );
+    wall.castShadow = true;
+
+    wall.receiveShadow = true;
+
+
+    scene.add(wall);
 
 
     mapObstacles.push({
@@ -624,12 +709,83 @@ function createWall(
 
     });
 
+
+    /* =====================================================
+       TOP EDGE
+    ===================================================== */
+
+    const top =
+        new THREE.Mesh(
+
+            new THREE.BoxGeometry(
+                width + 0.08,
+                0.12,
+                depth + 0.08
+            ),
+
+            new THREE.MeshStandardMaterial({
+                color: 0x788594,
+                roughness: 0.6
+            })
+
+        );
+
+
+    top.position.set(
+        x,
+        y + height / 2,
+        z
+    );
+
+
+    top.castShadow = true;
+
+
+    scene.add(top);
+
+
+    /* =====================================================
+       VERTICAL DETAILS
+    ===================================================== */
+
+    if (
+        width >= 3 &&
+        depth >= 2
+    ) {
+
+        const stripe =
+            new THREE.Mesh(
+
+                new THREE.BoxGeometry(
+                    0.08,
+                    height - 0.3,
+                    depth + 0.02
+                ),
+
+                new THREE.MeshStandardMaterial({
+                    color: 0x343c46
+                })
+
+            );
+
+
+        stripe.position.set(
+            x - width / 3,
+            y,
+            z
+        );
+
+
+        scene.add(stripe);
+
+    }
+
 }
 
 
-// ============================================================
-// WEAPON
-// ============================================================
+/* =========================================================
+   WEAPON
+========================================================= */
 
 function createWeapon() {
 
@@ -653,13 +809,6 @@ function createWeapon() {
     );
 
 
-    weaponModel.rotation.set(
-        -0.08,
-        -0.08,
-        0
-    );
-
-
     camera.add(
         weaponModel
     );
@@ -672,14 +821,18 @@ function createWeapon() {
 
         createAK();
 
-    } else if (
+    }
+
+    else if (
         currentWeapon ===
         "pistol"
     ) {
 
         createPistol();
 
-    } else {
+    }
+
+    else {
 
         createKnife();
 
@@ -688,71 +841,87 @@ function createWeapon() {
 }
 
 
-// ============================================================
-// AK MODEL
-// ============================================================
+/* =========================================================
+   AK-47
+========================================================= */
 
 function createAK() {
 
-    const metal =
+    const receiverMaterial =
         new THREE.MeshStandardMaterial({
+
             color:
-                0x242424,
+                0x24282c,
+
+            metalness:
+                0.7,
 
             roughness:
-                0.55
+                0.32
+
         });
 
 
-    const black =
+    const darkMetal =
         new THREE.MeshStandardMaterial({
+
             color:
-                0x101010,
+                0x0e1114,
+
+            metalness:
+                0.8,
 
             roughness:
-                0.8
+                0.25
+
         });
 
 
     const wood =
         new THREE.MeshStandardMaterial({
+
             color:
-                0x754b29,
+                0x754526,
 
             roughness:
-                0.7
+                0.6
+
         });
 
 
-    // Receiver
+    /* Receiver */
 
     const receiver =
         new THREE.Mesh(
+
             new THREE.BoxGeometry(
-                0.65,
+                0.68,
                 0.28,
-                1.1
+                1.05
             ),
-            metal
+
+            receiverMaterial
+
         );
 
 
-    weaponModel.add(
-        receiver
-    );
+    weaponModel.add(receiver);
 
 
-    // Barrel
+    /* Barrel */
 
     const barrel =
         new THREE.Mesh(
+
             new THREE.CylinderGeometry(
                 0.055,
-                0.055,
-                1.15,
-                12
+                0.065,
+                1.35,
+                16
             ),
-            black
+
+            darkMetal
+
         );
 
 
@@ -761,46 +930,80 @@ function createAK() {
 
 
     barrel.position.z =
-        -0.95;
+        -1.15;
 
 
-    weaponModel.add(
-        barrel
-    );
+    weaponModel.add(barrel);
 
 
-    // Stock
+    /* Muzzle */
+
+    const muzzle =
+        new THREE.Mesh(
+
+            new THREE.CylinderGeometry(
+                0.09,
+                0.07,
+                0.18,
+                16
+            ),
+
+            darkMetal
+
+        );
+
+
+    muzzle.rotation.z =
+        Math.PI / 2;
+
+
+    muzzle.position.z =
+        -1.83;
+
+
+    weaponModel.add(muzzle);
+
+
+    /* Wooden stock */
 
     const stock =
         new THREE.Mesh(
+
             new THREE.BoxGeometry(
-                0.24,
-                0.25,
-                0.75
+                0.28,
+                0.3,
+                0.85
             ),
+
             wood
+
         );
 
 
     stock.position.z =
-        0.9;
+        0.92;
 
 
-    weaponModel.add(
-        stock
-    );
+    stock.rotation.y =
+        0.02;
 
 
-    // Magazine
+    weaponModel.add(stock);
+
+
+    /* Magazine */
 
     const magazine =
         new THREE.Mesh(
+
             new THREE.BoxGeometry(
-                0.25,
+                0.26,
                 0.65,
                 0.35
             ),
-            black
+
+            darkMetal
+
         );
 
 
@@ -812,31 +1015,32 @@ function createAK() {
 
 
     magazine.rotation.x =
-        -0.15;
+        -0.18;
 
 
-    weaponModel.add(
-        magazine
-    );
+    weaponModel.add(magazine);
 
 
-    // Grip
+    /* Grip */
 
     const grip =
         new THREE.Mesh(
+
             new THREE.BoxGeometry(
-                0.2,
-                0.5,
+                0.22,
+                0.52,
                 0.25
             ),
-            black
+
+            darkMetal
+
         );
 
 
     grip.position.set(
         0,
         -0.35,
-        0.4
+        0.38
     );
 
 
@@ -844,74 +1048,106 @@ function createAK() {
         -0.25;
 
 
-    weaponModel.add(
-        grip
-    );
+    weaponModel.add(grip);
 
 
-    // Front sight
+    /* Handguard */
+
+    const handguard =
+        new THREE.Mesh(
+
+            new THREE.BoxGeometry(
+                0.32,
+                0.23,
+                0.7
+            ),
+
+            wood
+
+        );
+
+
+    handguard.position.z =
+        -0.7;
+
+
+    weaponModel.add(handguard);
+
+
+    /* Front sight */
 
     const sight =
         new THREE.Mesh(
+
             new THREE.BoxGeometry(
-                0.08,
-                0.15,
-                0.12
+                0.07,
+                0.17,
+                0.09
             ),
-            black
+
+            darkMetal
+
         );
 
 
     sight.position.set(
         0,
-        0.18,
-        -0.7
+        0.19,
+        -0.75
     );
 
 
-    weaponModel.add(
-        sight
-    );
+    weaponModel.add(sight);
 
 }
 
 
-// ============================================================
-// PISTOL
-// ============================================================
+/* =========================================================
+   PISTOL
+========================================================= */
 
 function createPistol() {
 
-    const metal =
+    const slideMaterial =
         new THREE.MeshStandardMaterial({
+
             color:
-                0x353a42,
+                0x24282d,
+
+            metalness:
+                0.75,
 
             roughness:
-                0.5
+                0.28
+
         });
 
 
-    const black =
+    const gripMaterial =
         new THREE.MeshStandardMaterial({
+
             color:
-                0x101010,
+                0x121416,
 
             roughness:
-                0.8
+                0.85
+
         });
 
 
-    // Slide
+    /* Slide */
 
     const slide =
         new THREE.Mesh(
+
             new THREE.BoxGeometry(
-                0.32,
-                0.2,
-                0.85
+                0.34,
+                0.21,
+                0.9
             ),
-            metal
+
+            slideMaterial
+
         );
 
 
@@ -919,22 +1155,23 @@ function createPistol() {
         0.08;
 
 
-    weaponModel.add(
-        slide
-    );
+    weaponModel.add(slide);
 
 
-    // Barrel
+    /* Barrel */
 
     const barrel =
         new THREE.Mesh(
+
             new THREE.CylinderGeometry(
                 0.045,
                 0.045,
                 0.55,
-                12
+                16
             ),
-            black
+
+            slideMaterial
+
         );
 
 
@@ -942,35 +1179,37 @@ function createPistol() {
         Math.PI / 2;
 
 
-    barrel.position.set(
-        0,
-        0.08,
-        -0.65
-    );
+    barrel.position.z =
+        -0.68;
 
 
-    weaponModel.add(
-        barrel
-    );
+    barrel.position.y =
+        0.08;
 
 
-    // Grip
+    weaponModel.add(barrel);
+
+
+    /* Grip */
 
     const grip =
         new THREE.Mesh(
+
             new THREE.BoxGeometry(
-                0.25,
-                0.55,
+                0.27,
+                0.62,
                 0.3
             ),
-            black
+
+            gripMaterial
+
         );
 
 
     grip.position.set(
         0,
-        -0.28,
-        0.25
+        -0.3,
+        0.27
     );
 
 
@@ -978,95 +1217,207 @@ function createPistol() {
         -0.18;
 
 
-    weaponModel.add(
-        grip
-    );
+    weaponModel.add(grip);
 
 
-    // Magazine
+    /* Magazine */
 
-    const magazine =
+    const mag =
         new THREE.Mesh(
+
             new THREE.BoxGeometry(
-                0.16,
-                0.4,
-                0.18
+                0.17,
+                0.42,
+                0.19
             ),
-            black
+
+            slideMaterial
+
         );
 
 
-    magazine.position.set(
+    mag.position.set(
         0,
-        -0.45,
-        0.15
+        -0.55,
+        0.22
     );
 
 
-    weaponModel.add(
-        magazine
-    );
+    weaponModel.add(mag);
+
+
+    /* Sights */
+
+    for (
+        const x of [-0.08, 0.08]
+    ) {
+
+        const sight =
+            new THREE.Mesh(
+
+                new THREE.BoxGeometry(
+                    0.035,
+                    0.08,
+                    0.12
+                ),
+
+                gripMaterial
+
+            );
+
+
+        sight.position.set(
+            x,
+            0.21,
+            -0.15
+        );
+
+
+        weaponModel.add(sight);
+
+    }
 
 }
 
 
-// ============================================================
-// KNIFE
-// ============================================================
+/* =========================================================
+   COMBAT KNIFE
+========================================================= */
 
 function createKnife() {
 
     const bladeMaterial =
         new THREE.MeshStandardMaterial({
+
             color:
-                0xc8d0db,
+                0xbcc7d3,
 
             metalness:
-                0.85,
+                0.95,
 
             roughness:
-                0.2
+                0.14
+
         });
 
 
-    const handleMaterial =
+    const dark =
         new THREE.MeshStandardMaterial({
+
             color:
-                0x111111,
+                0x101317,
 
             roughness:
-                0.8
+                0.75
+
         });
 
+
+    const accent =
+        new THREE.MeshStandardMaterial({
+
+            color:
+                0x56616e,
+
+            metalness:
+                0.6,
+
+            roughness:
+                0.25
+
+        });
+
+
+    /* Blade */
 
     const blade =
         new THREE.Mesh(
+
             new THREE.BoxGeometry(
-                0.12,
-                0.08,
-                1.25
+                0.13,
+                0.055,
+                1.45
             ),
+
             bladeMaterial
+
         );
 
 
     blade.position.z =
-        -0.55;
+        -0.65;
 
 
-    weaponModel.add(
-        blade
-    );
+    blade.rotation.y =
+        -0.04;
 
+
+    weaponModel.add(blade);
+
+
+    /* Blade tip */
+
+    const tip =
+        new THREE.Mesh(
+
+            new THREE.ConeGeometry(
+                0.1,
+                0.42,
+                4
+            ),
+
+            bladeMaterial
+
+        );
+
+
+    tip.rotation.x =
+        -Math.PI / 2;
+
+
+    tip.position.z =
+        -1.55;
+
+
+    weaponModel.add(tip);
+
+
+    /* Guard */
+
+    const guard =
+        new THREE.Mesh(
+
+            new THREE.BoxGeometry(
+                0.48,
+                0.1,
+                0.13
+            ),
+
+            accent
+
+        );
+
+
+    guard.position.z =
+        0.08;
+
+
+    weaponModel.add(guard);
+
+
+    /* Handle */
 
     const handle =
         new THREE.Mesh(
+
             new THREE.BoxGeometry(
-                0.16,
-                0.16,
-                0.55
+                0.18,
+                0.19,
+                0.65
             ),
-            handleMaterial
+
+            dark
+
         );
 
 
@@ -1074,16 +1425,46 @@ function createKnife() {
         0.45;
 
 
-    weaponModel.add(
-        handle
-    );
+    weaponModel.add(handle);
+
+
+    /* Handle rings */
+
+    for (
+        let i = 0;
+        i < 3;
+        i++
+    ) {
+
+        const ring =
+            new THREE.Mesh(
+
+                new THREE.BoxGeometry(
+                    0.2,
+                    0.22,
+                    0.06
+                ),
+
+                accent
+
+            );
+
+
+        ring.position.z =
+            0.18 +
+            i * 0.18;
+
+
+        weaponModel.add(ring);
+
+    }
 
 }
 
 
-// ============================================================
-// HUD
-// ============================================================
+/* =========================================================
+   HUD
+========================================================= */
 
 function createHUD() {
 
@@ -1092,10 +1473,7 @@ function createHUD() {
             "novaHud"
         );
 
-
-    if (old) {
-        old.remove();
-    }
+    if (old) old.remove();
 
 
     const hud =
@@ -1111,6 +1489,7 @@ function createHUD() {
     Object.assign(
         hud.style,
         {
+
             position:
                 "fixed",
 
@@ -1128,18 +1507,13 @@ function createHUD() {
 
             fontFamily:
                 "Arial, sans-serif"
+
         }
     );
 
 
-    document.body.appendChild(
-        hud
-    );
+    document.body.appendChild(hud);
 
-
-    // ========================================================
-    // CROSSHAIR
-    // ========================================================
 
     const crosshair =
         document.createElement(
@@ -1154,6 +1528,7 @@ function createHUD() {
     Object.assign(
         crosshair.style,
         {
+
             position:
                 "absolute",
 
@@ -1167,25 +1542,20 @@ function createHUD() {
                 "translate(-50%,-50%)",
 
             fontSize:
-                "26px",
+                "25px",
 
             fontWeight:
                 "bold",
 
             textShadow:
-                "0 0 4px black"
+                "0 0 5px black"
+
         }
     );
 
 
-    hud.appendChild(
-        crosshair
-    );
+    hud.appendChild(crosshair);
 
-
-    // ========================================================
-    // HEALTH
-    // ========================================================
 
     const healthUI =
         document.createElement(
@@ -1200,6 +1570,7 @@ function createHUD() {
     Object.assign(
         healthUI.style,
         {
+
             position:
                 "absolute",
 
@@ -1217,18 +1588,13 @@ function createHUD() {
 
             textShadow:
                 "0 2px 5px black"
+
         }
     );
 
 
-    hud.appendChild(
-        healthUI
-    );
+    hud.appendChild(healthUI);
 
-
-    // ========================================================
-    // WEAPON
-    // ========================================================
 
     const weaponUI =
         document.createElement(
@@ -1243,6 +1609,7 @@ function createHUD() {
     Object.assign(
         weaponUI.style,
         {
+
             position:
                 "absolute",
 
@@ -1263,32 +1630,28 @@ function createHUD() {
 
             textShadow:
                 "0 2px 5px black"
+
         }
     );
 
 
-    hud.appendChild(
-        weaponUI
-    );
+    hud.appendChild(weaponUI);
 
 
-    // ========================================================
-    // BIG AMMO
-    // ========================================================
-
-    const ammoUI =
+    const ammoPopup =
         document.createElement(
             "div"
         );
 
 
-    ammoUI.id =
+    ammoPopup.id =
         "novaAmmoPopup";
 
 
     Object.assign(
-        ammoUI.style,
+        ammoPopup.style,
         {
+
             position:
                 "absolute",
 
@@ -1311,19 +1674,14 @@ function createHUD() {
                 "0",
 
             transition:
-                "opacity 0.2s"
+                "opacity .2s"
+
         }
     );
 
 
-    hud.appendChild(
-        ammoUI
-    );
+    hud.appendChild(ammoPopup);
 
-
-    // ========================================================
-    // SCORE
-    // ========================================================
 
     const score =
         document.createElement(
@@ -1338,6 +1696,7 @@ function createHUD() {
     Object.assign(
         score.style,
         {
+
             position:
                 "absolute",
 
@@ -1361,32 +1720,28 @@ function createHUD() {
 
             textShadow:
                 "0 2px 5px black"
+
         }
     );
 
 
-    hud.appendChild(
-        score
-    );
+    hud.appendChild(score);
 
 
-    // ========================================================
-    // RELOAD
-    // ========================================================
-
-    const reloadUI =
+    const reload =
         document.createElement(
             "div"
         );
 
 
-    reloadUI.id =
+    reload.id =
         "novaReload";
 
 
     Object.assign(
-        reloadUI.style,
+        reload.style,
         {
+
             position:
                 "absolute",
 
@@ -1407,13 +1762,12 @@ function createHUD() {
 
             textShadow:
                 "0 2px 5px black"
+
         }
     );
 
 
-    hud.appendChild(
-        reloadUI
-    );
+    hud.appendChild(reload);
 
 
     updateHUD();
@@ -1421,9 +1775,9 @@ function createHUD() {
 }
 
 
-// ============================================================
-// HUD UPDATE
-// ============================================================
+/* =========================================================
+   HUD UPDATE
+========================================================= */
 
 function updateHUD() {
 
@@ -1463,9 +1817,11 @@ function updateHUD() {
         ) {
 
             weaponUI.innerHTML =
-                "KNIFE";
+                "COMBAT KNIFE";
 
-        } else {
+        }
+
+        else {
 
             weaponUI.innerHTML =
                 weapons[
@@ -1499,18 +1855,16 @@ function updateHUD() {
 }
 
 
-// ============================================================
-// AMMO DISPLAY
-// ============================================================
+/* =========================================================
+   AMMO POPUP
+========================================================= */
 
 function showAmmo() {
 
     if (
         currentWeapon ===
         "knife"
-    ) {
-        return;
-    }
+    ) return;
 
 
     const popup =
@@ -1519,9 +1873,7 @@ function showAmmo() {
         );
 
 
-    if (!popup) {
-        return;
-    }
+    if (!popup) return;
 
 
     popup.textContent =
@@ -1554,9 +1906,9 @@ function showAmmo() {
 }
 
 
-// ============================================================
-// CONTROLS
-// ============================================================
+/* =========================================================
+   CONTROLS
+========================================================= */
 
 function setupControls() {
 
@@ -1569,49 +1921,35 @@ function setupControls() {
             ] = true;
 
 
-            // AK
-
             if (
                 event.code ===
                 "Digit1"
             ) {
 
-                switchWeapon(
-                    "ak"
-                );
+                switchWeapon("ak");
 
             }
 
-
-            // Pistol
 
             if (
                 event.code ===
                 "Digit2"
             ) {
 
-                switchWeapon(
-                    "pistol"
-                );
+                switchWeapon("pistol");
 
             }
 
-
-            // Knife
 
             if (
                 event.code ===
                 "Digit3"
             ) {
 
-                switchWeapon(
-                    "knife"
-                );
+                switchWeapon("knife");
 
             }
 
-
-            // Reload
 
             if (
                 event.code ===
@@ -1623,18 +1961,16 @@ function setupControls() {
             }
 
 
-            // Jump
-
             if (
                 event.code ===
                     "Space" &&
                 player &&
                 player.position.y <=
-                    1.71
+                    1.66
             ) {
 
                 velocityY =
-                    9;
+                    8.5;
 
             }
 
@@ -1661,9 +1997,7 @@ function setupControls() {
             if (
                 event.button !==
                 0
-            ) {
-                return;
-            }
+            ) return;
 
 
             mouseDown =
@@ -1713,11 +2047,7 @@ function setupControls() {
                 !renderer ||
                 document.pointerLockElement !==
                     renderer.domElement
-            ) {
-
-                return;
-
-            }
+            ) return;
 
 
             yaw -=
@@ -1758,61 +2088,32 @@ function setupControls() {
 }
 
 
-// ============================================================
-// MOVEMENT
-// ============================================================
+/* =========================================================
+   MOVEMENT
+========================================================= */
 
 function updateMovement(
     delta
 ) {
 
-    if (!player) {
-        return;
-    }
+    if (!player) return;
 
 
     const direction =
         new THREE.Vector3();
 
 
-    if (
-        keys["KeyW"]
-    ) {
+    if (keys["KeyW"])
+        direction.z -= 1;
 
-        direction.z -=
-            1;
+    if (keys["KeyS"])
+        direction.z += 1;
 
-    }
+    if (keys["KeyA"])
+        direction.x -= 1;
 
-
-    if (
-        keys["KeyS"]
-    ) {
-
-        direction.z +=
-            1;
-
-    }
-
-
-    if (
-        keys["KeyA"]
-    ) {
-
-        direction.x -=
-            1;
-
-    }
-
-
-    if (
-        keys["KeyD"]
-    ) {
-
-        direction.x +=
-            1;
-
-    }
+    if (keys["KeyD"])
+        direction.x += 1;
 
 
     if (
@@ -1822,8 +2123,6 @@ function updateMovement(
 
         direction.normalize();
 
-
-        // Movement follows camera yaw
 
         direction.applyAxisAngle(
             new THREE.Vector3(
@@ -1837,8 +2136,7 @@ function updateMovement(
     }
 
 
-    let speed =
-        7;
+    let speed = 7;
 
 
     if (
@@ -1846,8 +2144,7 @@ function updateMovement(
         keys["ShiftRight"]
     ) {
 
-        speed =
-            10;
+        speed = 10;
 
     }
 
@@ -1856,15 +2153,16 @@ function updateMovement(
         direction.x *
             speed *
             delta,
+
         direction.z *
             speed *
             delta
     );
 
 
-    // ========================================================
-    // GRAVITY
-    // ========================================================
+    /* =====================================================
+       GRAVITY
+    ===================================================== */
 
     velocityY -=
         25 *
@@ -1876,23 +2174,26 @@ function updateMovement(
         delta;
 
 
+    /*
+       IMPORTANT:
+       Player eye height is 1.65.
+       This prevents the player
+       from floating above the floor.
+    */
+
     if (
         player.position.y <
-        1.7
+        1.65
     ) {
 
         player.position.y =
-            1.7;
+            1.65;
 
         velocityY =
             0;
 
     }
 
-
-    // ========================================================
-    // BOUNDARY
-    // ========================================================
 
     const boundary =
         MAP_HALF -
@@ -1921,9 +2222,9 @@ function updateMovement(
 }
 
 
-// ============================================================
-// COLLISION
-// ============================================================
+/* =========================================================
+   COLLISION
+========================================================= */
 
 function tryMove(
     dx,
@@ -1945,8 +2246,8 @@ function tryMove(
 
 
     for (
-        const wall
-        of mapObstacles
+        const wall of
+        mapObstacles
     ) {
 
         const closestX =
@@ -2005,9 +2306,9 @@ function tryMove(
 }
 
 
-// ============================================================
-// SWITCH WEAPON
-// ============================================================
+/* =========================================================
+   WEAPON SWITCH
+========================================================= */
 
 function switchWeapon(
     weapon
@@ -2016,11 +2317,7 @@ function switchWeapon(
     if (
         !weapons[weapon] ||
         reloading
-    ) {
-
-        return;
-
-    }
+    ) return;
 
 
     currentWeapon =
@@ -2029,26 +2326,21 @@ function switchWeapon(
 
     createWeapon();
 
-
     updateHUD();
 
 }
 
 
-// ============================================================
-// SHOOT
-// ============================================================
+/* =========================================================
+   SHOOT
+========================================================= */
 
 function shoot() {
 
     if (
         !gameStarted ||
         reloading
-    ) {
-
-        return;
-
-    }
+    ) return;
 
 
     const weapon =
@@ -2065,18 +2357,12 @@ function shoot() {
         now -
             lastShot <
         weapon.fireRate
-    ) {
-
-        return;
-
-    }
+    ) return;
 
 
     lastShot =
         now;
 
-
-    // Knife
 
     if (
         currentWeapon ===
@@ -2089,8 +2375,6 @@ function shoot() {
 
     }
 
-
-    // Empty
 
     if (
         ammo[
@@ -2115,29 +2399,21 @@ function shoot() {
     showAmmo();
 
 
-    // Recoil
+    weaponRecoil = 1;
 
-    weaponRecoil =
-        1;
-
-
-    // Flash
 
     muzzleFlash();
 
 
-    // Hit detection
-
     raycastShoot();
 
-
-    // Tell server
 
     if (socket) {
 
         socket.emit(
             "playerShoot",
             {
+
                 weapon:
                     currentWeapon,
 
@@ -2146,6 +2422,7 @@ function shoot() {
 
                 pitch:
                     pitch
+
             }
         );
 
@@ -2154,9 +2431,9 @@ function shoot() {
 }
 
 
-// ============================================================
-// AUTOMATIC FIRE
-// ============================================================
+/* =========================================================
+   AUTO FIRE
+========================================================= */
 
 function automaticFire() {
 
@@ -2173,9 +2450,9 @@ function automaticFire() {
 }
 
 
-// ============================================================
-// RAYCAST
-// ============================================================
+/* =========================================================
+   RAYCAST
+========================================================= */
 
 function raycastShoot() {
 
@@ -2200,14 +2477,8 @@ function raycastShoot() {
         );
 
 
-    if (
-        targets.length ===
-        0
-    ) {
-
+    if (!targets.length)
         return;
-
-    }
 
 
     const hits =
@@ -2217,38 +2488,18 @@ function raycastShoot() {
         );
 
 
-    if (
-        hits.length ===
-        0
-    ) {
-
+    if (!hits.length)
         return;
-
-    }
-
-
-    const hit =
-        hits[0];
 
 
     let target =
-        hit.object;
+        hits[0].object;
 
 
-    let headshot =
-        false;
-
-
-    if (
+    const headshot =
         target.userData &&
         target.userData.hitbox ===
-            "head"
-    ) {
-
-        headshot =
-            true;
-
-    }
+            "head";
 
 
     while (
@@ -2262,9 +2513,8 @@ function raycastShoot() {
     }
 
 
-    if (!target) {
+    if (!target)
         return;
-    }
 
 
     const weapon =
@@ -2289,6 +2539,7 @@ function raycastShoot() {
         socket.emit(
             "playerDamage",
             {
+
                 targetId:
                     target.userData.playerId,
 
@@ -2300,6 +2551,7 @@ function raycastShoot() {
 
                 weapon:
                     currentWeapon
+
             }
         );
 
@@ -2308,9 +2560,9 @@ function raycastShoot() {
 }
 
 
-// ============================================================
-// KNIFE
-// ============================================================
+/* =========================================================
+   KNIFE
+========================================================= */
 
 function knifeAttack() {
 
@@ -2342,24 +2594,14 @@ function knifeAttack() {
         );
 
 
-    if (
-        hits.length ===
-        0
-    ) {
-
+    if (!hits.length)
         return;
-
-    }
 
 
     if (
         hits[0].distance >
         3
-    ) {
-
-        return;
-
-    }
+    ) return;
 
 
     let target =
@@ -2377,14 +2619,11 @@ function knifeAttack() {
     }
 
 
-    if (!target) {
+    if (!target)
         return;
-    }
 
 
-    showHitMarker(
-        false
-    );
+    showHitMarker(false);
 
 
     if (socket) {
@@ -2392,6 +2631,7 @@ function knifeAttack() {
         socket.emit(
             "playerDamage",
             {
+
                 targetId:
                     target.userData.playerId,
 
@@ -2403,6 +2643,7 @@ function knifeAttack() {
 
                 weapon:
                     "knife"
+
             }
         );
 
@@ -2411,25 +2652,20 @@ function knifeAttack() {
 }
 
 
-// ============================================================
-// RELOAD
-// ============================================================
+/* =========================================================
+   RELOAD
+========================================================= */
 
 function reload() {
 
     if (
         currentWeapon ===
         "knife"
-    ) {
+    ) return;
 
+
+    if (reloading)
         return;
-
-    }
-
-
-    if (reloading) {
-        return;
-    }
 
 
     const weapon =
@@ -2443,29 +2679,21 @@ function reload() {
             currentWeapon
         ] >=
         weapon.magazine
-    ) {
-
-        return;
-
-    }
+    ) return;
 
 
-    reloading =
-        true;
+    reloading = true;
 
 
-    const reloadUI =
+    const ui =
         document.getElementById(
             "novaReload"
         );
 
 
-    if (reloadUI) {
-
-        reloadUI.textContent =
+    if (ui)
+        ui.textContent =
             "RELOADING...";
-
-    }
 
 
     setTimeout(
@@ -2481,12 +2709,9 @@ function reload() {
                 false;
 
 
-            if (reloadUI) {
-
-                reloadUI.textContent =
+            if (ui)
+                ui.textContent =
                     "";
-
-            }
 
 
             updateHUD();
@@ -2500,9 +2725,9 @@ function reload() {
 }
 
 
-// ============================================================
-// MUZZLE FLASH
-// ============================================================
+/* =========================================================
+   MUZZLE FLASH
+========================================================= */
 
 function muzzleFlash() {
 
@@ -2515,6 +2740,7 @@ function muzzleFlash() {
     Object.assign(
         flash.style,
         {
+
             position:
                 "fixed",
 
@@ -2525,10 +2751,10 @@ function muzzleFlash() {
                 "50%",
 
             width:
-                "10px",
+                "12px",
 
             height:
-                "10px",
+                "12px",
 
             borderRadius:
                 "50%",
@@ -2537,16 +2763,17 @@ function muzzleFlash() {
                 "translate(-50%,-50%)",
 
             background:
-                "#fff",
+                "white",
 
             boxShadow:
-                "0 0 25px #fff",
+                "0 0 30px white",
 
             zIndex:
                 "100",
 
             pointerEvents:
                 "none"
+
         }
     );
 
@@ -2557,20 +2784,16 @@ function muzzleFlash() {
 
 
     setTimeout(
-        () => {
-
-            flash.remove();
-
-        },
+        () => flash.remove(),
         45
     );
 
 }
 
 
-// ============================================================
-// HIT MARKER
-// ============================================================
+/* =========================================================
+   HIT MARKER
+========================================================= */
 
 function showHitMarker(
     headshot
@@ -2591,6 +2814,7 @@ function showHitMarker(
     Object.assign(
         marker.style,
         {
+
             position:
                 "fixed",
 
@@ -2606,7 +2830,7 @@ function showHitMarker(
             color:
                 headshot
                     ? "#ffd000"
-                    : "#ffffff",
+                    : "white",
 
             fontSize:
                 "28px",
@@ -2619,6 +2843,7 @@ function showHitMarker(
 
             pointerEvents:
                 "none"
+
         }
     );
 
@@ -2629,20 +2854,16 @@ function showHitMarker(
 
 
     setTimeout(
-        () => {
-
-            marker.remove();
-
-        },
+        () => marker.remove(),
         150
     );
 
 }
 
 
-// ============================================================
-// REMOTE PLAYER
-// ============================================================
+/* =========================================================
+   REMOTE PLAYER
+========================================================= */
 
 function addRemotePlayer(
     data
@@ -2651,33 +2872,21 @@ function addRemotePlayer(
     if (
         !data ||
         !data.id
-    ) {
-
-        return;
-
-    }
+    ) return;
 
 
     if (
         socket &&
         data.id ===
             socket.id
-    ) {
-
-        return;
-
-    }
+    ) return;
 
 
     if (
         remotePlayers[
             data.id
         ]
-    ) {
-
-        return;
-
-    }
+    ) return;
 
 
     const group =
@@ -2688,59 +2897,85 @@ function addRemotePlayer(
         data.id;
 
 
-    // ========================================================
-    // BODY
-    // ========================================================
+    /* =====================================================
+       BODY
+    ===================================================== */
+
+    const bodyMaterial =
+        new THREE.MeshStandardMaterial({
+            color:
+                0x2878c7,
+
+            roughness:
+                0.65
+        });
+
 
     const body =
         new THREE.Mesh(
+
             new THREE.BoxGeometry(
-                0.8,
-                1.4,
-                0.45
+                0.7,
+                1.15,
+                0.42
             ),
 
-            new THREE.MeshStandardMaterial({
-                color:
-                    0x2e86de
-            })
+            bodyMaterial
+
         );
 
 
+    /*
+       Feet start at Y = 0.
+       Body center therefore sits
+       at Y = 0.575.
+    */
+
     body.position.y =
-        0.7;
+        0.575;
+
+
+    body.castShadow = true;
+
+    body.receiveShadow = true;
 
 
     body.userData.playerId =
         data.id;
 
 
-    group.add(
-        body
-    );
+    group.add(body);
 
 
-    // ========================================================
-    // HEAD
-    // ========================================================
+    /* =====================================================
+       HEAD
+    ===================================================== */
 
     const head =
         new THREE.Mesh(
+
             new THREE.SphereGeometry(
-                0.34,
-                16,
-                12
+                0.31,
+                20,
+                16
             ),
 
             new THREE.MeshStandardMaterial({
                 color:
-                    0xf1c40f
+                    0xf0c59a,
+
+                roughness:
+                    0.8
             })
+
         );
 
 
     head.position.y =
-        1.7;
+        1.43;
+
+
+    head.castShadow = true;
 
 
     head.userData.playerId =
@@ -2751,43 +2986,177 @@ function addRemotePlayer(
         "head";
 
 
-    group.add(
-        head
-    );
+    group.add(head);
 
 
-    // ========================================================
-    // NAME
-    // ========================================================
+    /* =====================================================
+       EYES
+    ===================================================== */
 
-    const username =
-        data.username ||
-        "Player";
+    const eyeMaterial =
+        new THREE.MeshBasicMaterial({
+            color:
+                0x111111
+        });
 
+
+    for (
+        const x of [-0.1, 0.1]
+    ) {
+
+        const eye =
+            new THREE.Mesh(
+
+                new THREE.SphereGeometry(
+                    0.035,
+                    8,
+                    8
+                ),
+
+                eyeMaterial
+
+            );
+
+
+        eye.position.set(
+            x,
+            1.48,
+            -0.29
+        );
+
+
+        group.add(eye);
+
+    }
+
+
+    /* =====================================================
+       LEGS
+    ===================================================== */
+
+    const legMaterial =
+        new THREE.MeshStandardMaterial({
+            color:
+                0x202733,
+
+            roughness:
+                0.8
+        });
+
+
+    for (
+        const x of [-0.19, 0.19]
+    ) {
+
+        const leg =
+            new THREE.Mesh(
+
+                new THREE.BoxGeometry(
+                    0.22,
+                    0.75,
+                    0.28
+                ),
+
+                legMaterial
+
+            );
+
+
+        leg.position.set(
+            x,
+            -0.375,
+            0
+        );
+
+
+        leg.castShadow = true;
+
+
+        group.add(leg);
+
+    }
+
+
+    /* =====================================================
+       ARMS
+    ===================================================== */
+
+    const armMaterial =
+        new THREE.MeshStandardMaterial({
+            color:
+                0x246eae
+        });
+
+
+    for (
+        const x of [-0.48, 0.48]
+    ) {
+
+        const arm =
+            new THREE.Mesh(
+
+                new THREE.BoxGeometry(
+                    0.2,
+                    0.85,
+                    0.22
+                ),
+
+                armMaterial
+
+            );
+
+
+        arm.position.set(
+            x,
+            0.62,
+            0
+        );
+
+
+        arm.rotation.z =
+            x < 0
+                ? -0.12
+                : 0.12;
+
+
+        arm.castShadow = true;
+
+
+        group.add(arm);
+
+    }
+
+
+    /* =====================================================
+       NAME TAG
+    ===================================================== */
 
     const tag =
         createNametag(
-            username
+            data.username ||
+            "Player"
         );
 
 
     tag.position.y =
-        2.35;
+        2.05;
 
 
-    group.add(
-        tag
-    );
+    group.add(tag);
 
 
-    // ========================================================
-    // POSITION
-    // ========================================================
+    /* =====================================================
+       POSITION
+    ===================================================== */
 
     group.position.set(
+
         Number(data.x) || 0,
-        Number(data.y) || 0,
+
+        0,
+
         Number(data.z) || 0
+
     );
 
 
@@ -2797,9 +3166,7 @@ function addRemotePlayer(
         ) || 0;
 
 
-    scene.add(
-        group
-    );
+    scene.add(group);
 
 
     remotePlayers[
@@ -2810,22 +3177,17 @@ function addRemotePlayer(
             group,
 
         username:
-            username
+            data.username ||
+            "Player"
 
     };
-
-
-    console.log(
-        "Player added:",
-        username
-    );
 
 }
 
 
-// ============================================================
-// NAMETAG
-// ============================================================
+/* =========================================================
+   NAMETAG
+========================================================= */
 
 function createNametag(
     text
@@ -2839,7 +3201,6 @@ function createNametag(
 
     canvas.width =
         512;
-
 
     canvas.height =
         128;
@@ -2872,7 +3233,7 @@ function createNametag(
 
 
     ctx.lineWidth =
-        10;
+        12;
 
 
     ctx.strokeStyle =
@@ -2903,17 +3264,22 @@ function createNametag(
         );
 
 
-    texture.needsUpdate =
-        true;
+    texture.colorSpace =
+        THREE.SRGBColorSpace;
 
 
     const material =
         new THREE.SpriteMaterial({
+
             map:
                 texture,
 
             transparent:
-                true
+                true,
+
+            depthTest:
+                false
+
         });
 
 
@@ -2924,8 +3290,8 @@ function createNametag(
 
 
     sprite.scale.set(
-        2.6,
-        0.65,
+        2.5,
+        0.63,
         1
     );
 
@@ -2935,9 +3301,9 @@ function createNametag(
 }
 
 
-// ============================================================
-// UPDATE REMOTE PLAYER
-// ============================================================
+/* =========================================================
+   UPDATE REMOTE PLAYER
+========================================================= */
 
 function updateRemotePlayer(
     data
@@ -2946,11 +3312,7 @@ function updateRemotePlayer(
     if (
         !data ||
         !data.id
-    ) {
-
-        return;
-
-    }
+    ) return;
 
 
     if (
@@ -2974,11 +3336,18 @@ function updateRemotePlayer(
         ];
 
 
-    remote.object.position.set(
-        Number(data.x) || 0,
-        Number(data.y) || 0,
-        Number(data.z) || 0
-    );
+    /*
+       Keep players on the floor.
+       The server's Y value is not
+       used for the character body.
+    */
+
+    remote.object.position.x =
+        Number(data.x) || 0;
+
+
+    remote.object.position.z =
+        Number(data.z) || 0;
 
 
     if (
@@ -2994,9 +3363,9 @@ function updateRemotePlayer(
 }
 
 
-// ============================================================
-// REMOVE PLAYER
-// ============================================================
+/* =========================================================
+   REMOVE PLAYER
+========================================================= */
 
 function removeRemotePlayer(
     id
@@ -3006,9 +3375,8 @@ function removeRemotePlayer(
         remotePlayers[id];
 
 
-    if (!remote) {
+    if (!remote)
         return;
-    }
 
 
     scene.remove(
@@ -3016,16 +3384,14 @@ function removeRemotePlayer(
     );
 
 
-    delete remotePlayers[
-        id
-    ];
+    delete remotePlayers[id];
 
 }
 
 
-// ============================================================
-// SOCKET.IO
-// ============================================================
+/* =========================================================
+   SOCKET
+========================================================= */
 
 function setupSocket() {
 
@@ -3035,7 +3401,7 @@ function setupSocket() {
     ) {
 
         console.error(
-            "Socket.IO was not loaded."
+            "Socket.IO failed to load."
         );
 
         return;
@@ -3047,16 +3413,12 @@ function setupSocket() {
         io();
 
 
-    // ========================================================
-    // CONNECT
-    // ========================================================
-
     socket.on(
         "connect",
         () => {
 
             console.log(
-                "Connected to NovaStrike:",
+                "Connected:",
                 socket.id
             );
 
@@ -3064,8 +3426,10 @@ function setupSocket() {
             socket.emit(
                 "playerReady",
                 {
+
                     username:
                         getUsername()
+
                 }
             );
 
@@ -3076,17 +3440,12 @@ function setupSocket() {
     );
 
 
-    // ========================================================
-    // EXISTING PLAYERS
-    // ========================================================
-
     socket.on(
         "players",
         players => {
 
-            if (!players) {
+            if (!players)
                 return;
-            }
 
 
             Object.entries(
@@ -3100,8 +3459,11 @@ function setupSocket() {
                     ) {
 
                         addRemotePlayer({
+
                             id,
+
                             ...data
+
                         });
 
                     }
@@ -3112,10 +3474,6 @@ function setupSocket() {
         }
     );
 
-
-    // ========================================================
-    // PLAYER JOINED
-    // ========================================================
 
     socket.on(
         "playerJoined",
@@ -3137,10 +3495,6 @@ function setupSocket() {
     );
 
 
-    // ========================================================
-    // PLAYER MOVED
-    // ========================================================
-
     socket.on(
         "playerMoved",
         data => {
@@ -3152,10 +3506,6 @@ function setupSocket() {
         }
     );
 
-
-    // ========================================================
-    // PLAYER LEFT
-    // ========================================================
 
     socket.on(
         "playerLeft",
@@ -3169,17 +3519,12 @@ function setupSocket() {
     );
 
 
-    // ========================================================
-    // DAMAGE
-    // ========================================================
-
     socket.on(
         "damageTaken",
         data => {
 
-            if (!data) {
+            if (!data)
                 return;
-            }
 
 
             takeDamage(
@@ -3192,13 +3537,9 @@ function setupSocket() {
     );
 
 
-    // ========================================================
-    // KILL
-    // ========================================================
-
     socket.on(
         "killConfirmed",
-        data => {
+        () => {
 
             kills++;
 
@@ -3210,23 +3551,22 @@ function setupSocket() {
     );
 
 
-    // ========================================================
-    // RESPAWN
-    // ========================================================
-
     socket.on(
         "respawn",
         data => {
 
-            if (!player) {
+            if (!player)
                 return;
-            }
 
 
             player.position.set(
+
                 Number(data.x) || 0,
-                Number(data.y) || 1.7,
+
+                1.65,
+
                 Number(data.z) || 5
+
             );
 
 
@@ -3245,30 +3585,12 @@ function setupSocket() {
         }
     );
 
-
-    // ========================================================
-    // PLAYER DIED
-    // ========================================================
-
-    socket.on(
-        "playerDied",
-        data => {
-
-            console.log(
-                data?.username ||
-                "Player",
-                "died."
-            );
-
-        }
-    );
-
 }
 
 
-// ============================================================
-// USERNAME
-// ============================================================
+/* =========================================================
+   USERNAME
+========================================================= */
 
 function getUsername() {
 
@@ -3282,30 +3604,27 @@ function getUsername() {
 }
 
 
-// ============================================================
-// SEND POSITION
-// ============================================================
+/* =========================================================
+   SEND POSITION
+========================================================= */
 
 function sendPosition() {
 
     if (
         !socket ||
         !player
-    ) {
-
-        return;
-
-    }
+    ) return;
 
 
     socket.emit(
         "playerMove",
         {
+
             x:
                 player.position.x,
 
             y:
-                player.position.y,
+                0,
 
             z:
                 player.position.z,
@@ -3315,15 +3634,16 @@ function sendPosition() {
 
             username:
                 getUsername()
+
         }
     );
 
 }
 
 
-// ============================================================
-// DAMAGE
-// ============================================================
+/* =========================================================
+   DAMAGE
+========================================================= */
 
 function takeDamage(
     damage
@@ -3355,34 +3675,33 @@ function takeDamage(
 }
 
 
-// ============================================================
-// DEATH
-// ============================================================
+/* =========================================================
+   DEATH
+========================================================= */
 
 function die() {
 
     deaths++;
 
-    streak =
-        0;
-
+    streak = 0;
 
     updateHUD();
 
 
-    const deathScreen =
+    const screen =
         document.createElement(
             "div"
         );
 
 
-    deathScreen.textContent =
+    screen.textContent =
         "YOU DIED";
 
 
     Object.assign(
-        deathScreen.style,
+        screen.style,
         {
+
             position:
                 "fixed",
 
@@ -3412,38 +3731,34 @@ function die() {
 
             pointerEvents:
                 "none"
+
         }
     );
 
 
     document.body.appendChild(
-        deathScreen
+        screen
     );
 
 
     setTimeout(
-        () => {
-
-            deathScreen.remove();
-
-        },
+        () => screen.remove(),
         2500
     );
 
 }
 
 
-// ============================================================
-// WEAPON ANIMATION
-// ============================================================
+/* =========================================================
+   WEAPON ANIMATION
+========================================================= */
 
 function updateWeapon(
     delta
 ) {
 
-    if (!weaponModel) {
+    if (!weaponModel)
         return;
-    }
 
 
     weaponRecoil =
@@ -3471,9 +3786,9 @@ function updateWeapon(
 }
 
 
-// ============================================================
-// NETWORK
-// ============================================================
+/* =========================================================
+   NETWORK
+========================================================= */
 
 function updateNetwork(
     delta
@@ -3491,7 +3806,6 @@ function updateNetwork(
         networkTimer =
             0;
 
-
         sendPosition();
 
     }
@@ -3499,9 +3813,9 @@ function updateNetwork(
 }
 
 
-// ============================================================
-// GAME LOOP
-// ============================================================
+/* =========================================================
+   GAME LOOP
+========================================================= */
 
 function gameLoop(
     time
@@ -3542,24 +3856,16 @@ function gameLoop(
     );
 
 
-    // ========================================================
-    // NAMETAGS ALWAYS FACE CAMERA
-    // ========================================================
+    /* =====================================================
+       NAMETAGS FACE CAMERA
+    ===================================================== */
 
     Object.values(
         remotePlayers
     ).forEach(
         remote => {
 
-            if (
-                !remote.object
-            ) {
-                return;
-            }
-
-
-            remote.object
-                .children
+            remote.object.children
                 .forEach(
                     child => {
 
@@ -3588,20 +3894,16 @@ function gameLoop(
 }
 
 
-// ============================================================
-// RESIZE
-// ============================================================
+/* =========================================================
+   RESIZE
+========================================================= */
 
 function resizeGame() {
 
     if (
         !camera ||
         !renderer
-    ) {
-
-        return;
-
-    }
+    ) return;
 
 
     camera.aspect =
@@ -3620,10 +3922,6 @@ function resizeGame() {
 }
 
 
-// ============================================================
-// DEBUG
-// ============================================================
-
 console.log(
-    "NovaStrike game.js loaded successfully."
+    "NovaStrike visual game.js loaded."
 );
